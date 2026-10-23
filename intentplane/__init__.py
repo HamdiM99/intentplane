@@ -27,4 +27,4 @@ from .core import (
 __all__ = ["ActionContract", "Approvals", "Authority", "Catalog", "Decision", "DictRegistry", "Effect", "Free",
            "FromMandate", "FromRegistry", "Gateway", "Ledger", "Mandate", "Origin", "Outcome", "Pack", "Param",
            "Proposal", "ResolvedIntent", "RulePDP", "Status", "Tagged"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"

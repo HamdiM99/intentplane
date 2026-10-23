@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from agentdojo.functions_runtime import FunctionsRuntime
 
@@ -26,15 +27,13 @@ from intentplane import (
     ActionContract,
     Approvals,
     Authority,
-    Decision,
-    Effect,
     Gateway,
     Pack,
     Param,
     Proposal,
-    RulePDP,
     Status,
 )
+from intentplane.cedar_pdp import CedarPDP
 from intentplane.packs import bank
 
 PRINCIPAL = "emma"
@@ -77,12 +76,7 @@ PASSWORD = ActionContract("account.update_password", "user_account", (Param("pas
 USER_INFO = ActionContract("account.update_user_info", "user_account", (Param("changes", dict),), "account-1")
 
 
-def _permit_account(i, c):
-    return Decision(Effect.ALLOW, "policy", ("permit-account-change",))
-
-
-def _step_up_account(i, c):
-    return Decision(Effect.STEP_UP, "policy", ("account changes need the account holder",))
+ACCOUNT_PDP = CedarPDP.from_file("account-policy-2", Path(__file__).with_name("account.cedar"))
 
 
 @dataclass
@@ -115,7 +109,7 @@ class IntentplaneRuntime(FunctionsRuntime):
         bank_pack, _ = bank.build(registry)
         bank_pack.executors["payment.transfer"] = lambda values: self._pending()
         account_pack = Pack("account", [PASSWORD, USER_INFO],
-                            RulePDP("account-policy-1", [_permit_account, _step_up_account]),
+                            ACCOUNT_PDP,
                             executors={c.name: (lambda values: self._pending()) for c in (PASSWORD, USER_INFO)})
         auth = Authority()
         approvals = Approvals({PRINCIPAL: b"emma-device-key"})

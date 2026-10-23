@@ -5,24 +5,23 @@ four-eyes ("break the glass")."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 
+from intentplane.cedar_pdp import CedarPDP
 from intentplane.core import (
     ActionContract,
-    Decision,
     DictRegistry,
-    Effect,
     FromMandate,
     FromRegistry,
     Pack,
     Param,
-    RulePDP,
 )
 
 SECTIONS = {"summary", "labs", "meds", "notes", "full"}
 PURPOSES = {"treatment", "emergency", "research"}
 
 READ_RECORD = ActionContract(
-    name="ehr.read_record", resource="patient_record", version="health-2",
+    name="ehr.read_record", resource="patient_record", version="health-3",
     params=(
         Param("patient_id", str, critical=True, sources=(FromRegistry("open_encounters"),)),
         Param("section", str, validate=lambda s: s in SECTIONS),
@@ -31,28 +30,7 @@ READ_RECORD = ActionContract(
 )
 
 
-def permit_read(i, c):
-    if i.action == "ehr.read_record":
-        return Decision(Effect.ALLOW, "policy", ("permit-read-open-encounter",))
-
-
-def forbid_research_without_consent(i, c):
-    if i.action == "ehr.read_record" and i.params["purpose"].value == "research" and not i.context["consent_research"]:
-        return Decision(Effect.DENY, "policy", ("no research consent on file",))
-
-
-def step_up_minimum_necessary(i, c):
-    if i.action == "ehr.read_record" and i.params["section"].value == "full" and i.params["purpose"].value == "treatment":
-        return Decision(Effect.STEP_UP, "policy", ("full record under treatment purpose needs justification",))
-
-
-def four_eyes_break_the_glass(i, c):
-    if i.action == "ehr.read_record" and i.params["purpose"].value == "emergency":
-        return Decision(Effect.FOUR_EYES, "policy", ("emergency access: second reviewer required",))
-
-
-PDP = RulePDP("health-policy-2", [permit_read, forbid_research_without_consent, step_up_minimum_necessary,
-                                  four_eyes_break_the_glass])
+PDP = CedarPDP.from_file("health-policy-3", Path(__file__).with_name("health.cedar"))
 
 
 def build(open_encounters: Mapping[str, Mapping[str, str]], research_consent: Iterable[str] = ()) -> tuple[Pack, list]:

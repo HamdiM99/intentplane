@@ -3,13 +3,14 @@
 payee: the one the user named in the mandate, or one of HIS registered beneficiaries.
 source account and currency: bound in the mandate. Amount: chosen by the agent, but charged
 against the mandate's cumulative budget and checked by Cedar (step-up above 1,000.00, hard cap
-10,000.00). Sanctions come from the gateway's own list, never from the agent.
+10,000.00, see bank.cedar). Sanctions come from the gateway's own list, never from the agent.
 Amounts are integer cents (Cedar has no float).
 """
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 
 from intentplane.cedar_pdp import CedarPDP
 from intentplane.core import ActionContract, DictRegistry, FromMandate, FromRegistry, Pack, Param
@@ -34,7 +35,7 @@ def is_iban(v: object) -> bool:
 
 
 TRANSFER = ActionContract(
-    name="payment.transfer", resource="account", version="bank-2", budget_param="amount_cents",
+    name="payment.transfer", resource="account", version="bank-3", budget_param="amount_cents",
     params=(
         Param("source_account", str, critical=True, sources=(FromMandate("source_account"),), normalize=norm_iban,
               validate=is_iban),
@@ -46,23 +47,7 @@ TRANSFER = ActionContract(
     ),
 )
 
-POLICIES = """
-@id("permit-transfer")
-permit (principal, action == Action::"payment.transfer", resource)
-when { context.params.amount_cents <= 100000 };
-
-@id("step-up-large-transfer")
-permit (principal, action == Action::"payment.transfer", resource)
-when { context.params.amount_cents > 100000 };
-
-@id("forbid-hard-cap")
-forbid (principal, action == Action::"payment.transfer", resource)
-when { context.params.amount_cents > 1000000 };
-
-@id("forbid-sanctioned-payee")
-forbid (principal, action == Action::"payment.transfer", resource)
-when { context.payee_sanctioned };
-"""
+POLICY_FILE = Path(__file__).with_name("bank.cedar")
 
 
 def build(beneficiaries: Mapping[str, Mapping[str, str]], sanctioned: Iterable[str] = (),
@@ -80,7 +65,7 @@ def build(beneficiaries: Mapping[str, Mapping[str, str]], sanctioned: Iterable[s
         ledger.append(dict(values))
         return f"transfer-{len(ledger)}"
 
-    pack = Pack("bank", [TRANSFER], CedarPDP("bank-policy-2", POLICIES),
+    pack = Pack("bank", [TRANSFER], CedarPDP.from_file("bank-policy-3", POLICY_FILE),
                 registries={"beneficiaries": DictRegistry(beneficiaries, normalize=norm_iban)},
                 context={"payee_sanctioned": is_sanctioned},
                 executors={"payment.transfer": execute})

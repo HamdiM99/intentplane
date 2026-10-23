@@ -4,16 +4,19 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane"
-version = "0.2.0"
+version = "0.3.0"
 description = "Domain-independent intent control plane for LLM agents (generalisation of AgenticZeroTrust)"
 requires-python = ">=3.10"
-dependencies = ["cedarpy>=4.0"]   # the bank pack's policies are Cedar; the core itself has no dependency
+dependencies = ["cedarpy>=4.0"]   # every pack's policy is a Cedar file
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
 
 [tool.setuptools.packages.find]
 include = ["intentplane*"]
+
+[tool.setuptools.package-data]
+"intentplane.packs" = ["*.cedar"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -9,7 +9,7 @@ sources, policy, executor) changes.
 pip install -e ".[dev]"
 pytest                          # 27 tests (3 need agentdojo), incl. a 6,000-proposal property fuzz
 python demo.py                  # one injection, three domains, one gateway
-python scripts/mutation_check.py  # neutralise each Cedar forbid: the suite must fail
+python scripts/mutation_check.py  # 9/9 Cedar mutants killed (every forbid, every approval guard)
 pip install agentdojo && python -m integrations.agentdojo.run_replay   # AgentDojo banking, see below
 ```
 
@@ -60,10 +60,10 @@ an unexpected key is a contract violation. Everything that decides is resolved b
 | provenance | every critical value equals a trusted value: a mandate claim, or a record of the principal's own registry (`{"ref": id}` is resolved by the gateway, never trusted) |
 | delegation | the principal holds the action's scope |
 | budget | cumulative amount and call count per mandate |
-| policy | deterministic PDP, **default deny** (Cedar for the bank pack, rules for the others) |
+| policy | **Cedar** for every pack (`intentplane/packs/*.cedar`), default deny, forbid over permit. Evaluated at `approval_level` 0, 1, 2: the decision is the smallest level that permits (none, step-up, four-eyes) |
 | approval | `STEP_UP` needs the principal, `FOUR_EYES` a different human; the signature covers the operation hash, single use, expiring |
 | execution | the gateway is the only component that can act (executor per action) |
-| receipt | hash-chained record of the resolved intent, its provenance, the decision and the approvers |
+| receipt | hash-chained record of the agent's raw message, the resolved intent, its provenance, the decision and the approvers |
 
 ## The property, and what checks it
 
@@ -76,6 +76,17 @@ keys, any values, refs (valid, foreign, unknown), forged labels (`Tagged(..., SY
 expired). An independent oracle, written from the world's ground truth and not from gateway code,
 checks every executed action. The run exercises all outcomes (about 120 executed, 5,800 denied,
 80 pending).
+
+## v0.3: merge with the independent v2
+
+A second, independently written v2 fixed the same v0.1 flaw. v0.3 keeps the best of both:
+
+| From v2 | From v0.2 |
+|---|---|
+| Cedar as the only policy engine, for every pack | registries queried **per principal** (v2 let Alice's agent pay Bob's beneficiary) |
+| escalation decided by Cedar: smallest `approval_level` that permits | execution **by the gateway only** (v2 returned a decision and let the caller execute) |
+| mutation testing over every policy file and approval guard | a lock around check-and-consume of budgets and nonces |
+| the agent's raw message kept in each receipt | payees named by the user in the mandate; AgentDojo bridge; property oracle independent of the gateway |
 
 ## v0.2: what changed, and why
 

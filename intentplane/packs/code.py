@@ -5,23 +5,20 @@ human. No free shell exists in the catalog at all."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 
+from intentplane.cedar_pdp import CedarPDP
 from intentplane.core import (
     ActionContract,
-    Decision,
     DictRegistry,
-    Effect,
     FromMandate,
     FromRegistry,
     Pack,
     Param,
-    RulePDP,
 )
 
-PROTECTED = {"main", "release"}
-
 MERGE = ActionContract(
-    name="repo.merge", resource="repo", version="code-2",
+    name="repo.merge", resource="repo", version="code-3",
     params=(
         Param("repo", str, critical=True, sources=(FromMandate("repo"),)),
         Param("head_sha", str, critical=True, sources=(FromRegistry("ci_attested"),), validate=lambda s: len(s) == 40),
@@ -31,22 +28,7 @@ MERGE = ActionContract(
 )
 
 
-def permit_merge(i, c):
-    if i.action == "repo.merge":
-        return Decision(Effect.ALLOW, "policy", ("permit-merge",))
-
-
-def forbid_red_ci(i, c):
-    if i.action == "repo.merge" and i.context["ci_status"] != "success":
-        return Decision(Effect.DENY, "policy", ("CI not green for head_sha",))
-
-
-def four_eyes_protected_branch(i, c):
-    if i.action == "repo.merge" and i.params["target_branch"].value in PROTECTED and not i.context["approved_review"]:
-        return Decision(Effect.FOUR_EYES, "policy", ("protected branch requires an approved review",))
-
-
-PDP = RulePDP("code-policy-2", [permit_merge, forbid_red_ci, four_eyes_protected_branch])
+PDP = CedarPDP.from_file("code-policy-3", Path(__file__).with_name("code.cedar"))
 
 
 def build(ci_attested: Mapping[str, Mapping[str, str]], ci_status: Mapping[str, str],

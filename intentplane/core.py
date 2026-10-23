@@ -39,6 +39,14 @@ def _h(obj: Any) -> str:
     return hashlib.sha256(_canon(obj).encode()).hexdigest()
 
 
+def _jsonable(v: Any) -> Any:
+    """The agent's raw message, kept verbatim in the receipt (anything not JSON becomes its repr)."""
+    try:
+        return json.loads(json.dumps(v, default=repr))
+    except (TypeError, ValueError):
+        return repr(v)
+
+
 # --------------------------------------------------------------------------- #
 # What the agent may produce
 # --------------------------------------------------------------------------- #
@@ -405,6 +413,7 @@ class Gateway:
             except Exception as e:  # noqa: BLE001  fail closed: an error never becomes an ALLOW
                 outcome = Outcome(Status.DENIED, Decision(Effect.DENY, "error", (f"{type(e).__name__}: {e}",)))
             self.ledger.append(action=getattr(proposal, "action", None),
+                               raw=_jsonable(getattr(proposal, "args", proposal)),   # what the agent actually sent
                                intent=intent.canonical() if intent else None,
                                status=outcome.status.value, stage=outcome.decision.stage,
                                reasons=list(outcome.decision.reasons), approvers=list(outcome.approvers),
