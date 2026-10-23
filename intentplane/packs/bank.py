@@ -21,12 +21,25 @@ def norm_iban(v: object) -> str:
     return re.sub(r"\s+", "", v).upper()
 
 
+_IBAN = re.compile(r"^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$")
+
+
+def is_iban(v: object) -> bool:
+    """Structural IBAN check (country, check digits, BBAN). Applied to the RESOLVED value, so even a record
+    a human added by mistake ("Apple") is refused."""
+    try:
+        return bool(_IBAN.match(norm_iban(v)))
+    except ValueError:
+        return False
+
+
 TRANSFER = ActionContract(
     name="payment.transfer", resource="account", version="bank-2", budget_param="amount_cents",
     params=(
-        Param("source_account", str, critical=True, sources=(FromMandate("source_account"),), normalize=norm_iban),
+        Param("source_account", str, critical=True, sources=(FromMandate("source_account"),), normalize=norm_iban,
+              validate=is_iban),
         Param("payee_iban", str, critical=True, sources=(FromMandate("payee"), FromRegistry("beneficiaries")),
-              normalize=norm_iban),
+              normalize=norm_iban, validate=is_iban),
         Param("amount_cents", int, validate=lambda a: a > 0),
         Param("currency", str, critical=True, sources=(FromMandate("currency"),)),
         Param("reference", str),

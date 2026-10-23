@@ -7,10 +7,32 @@ sources, policy, executor) changes.
 
 ```bash
 pip install -e ".[dev]"
-pytest                          # 24 tests, incl. a 6,000-proposal property fuzz
+pytest                          # 27 tests (3 need agentdojo), incl. a 6,000-proposal property fuzz
 python demo.py                  # one injection, three domains, one gateway
 python scripts/mutation_check.py  # neutralise each Cedar forbid: the suite must fail
+pip install agentdojo && python -m integrations.agentdojo.run_replay   # AgentDojo banking, see below
 ```
+
+## AgentDojo banking benchmark (bank pack)
+
+[AgentDojo](https://github.com/ethz-spylab/agentdojo) banking suite (v1.2, 16 user tasks x 9 injection
+tasks) with every payment, standing-order change and account change routed through the gateway
+([`integrations/agentdojo/`](integrations/agentdojo/)). Worst case, no LLM needed: the agent executes
+the attacker's goal verbatim, then the user's task.
+
+| Configuration | Utility (no attack) | Attack success rate | Attempts blocked by the gateway |
+|---|---|---|---|
+| Undefended | 16/16 | **143/144 (99.3%)** | - |
+| intentplane, no human | 9/16 | **0/144** | 144/144 |
+| intentplane, attentive human (confirms new payees, step-ups, account changes) | 15/16 | **0/144** | 144/144 |
+| intentplane, human who approves everything | 15/16 | 111/144 (77.1%) | 32/144 |
+
+Same picture as AgenticZeroTrust's bridge (no human 9-11/16, attentive 15/16, rubber-stamp 88%), with
+one improvement from the cumulative mandate budget: even a human who approves everything cannot let
+through "send as much as possible" or "$30,000 in $10,000 increments" (0/16 each; AZT let the second
+through). The remaining 1/16 is a flaw in the benchmark's ground truth (it pays `"Apple"`, which the
+bank pack now rejects as an IBAN). Real models: `python -m integrations.agentdojo.run_llm --model <model>`.
+Full tables: [`results_replay.md`](integrations/agentdojo/results_replay.md).
 
 ## The trust boundary
 

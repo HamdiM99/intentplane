@@ -68,7 +68,8 @@ class Tagged:
 
 @dataclass(frozen=True)
 class FromMandate:
-    """The value must equal claim `field` of the signed mandate."""
+    """The value must equal claim `field` of the signed mandate (or one of its items, if the claim is a list:
+    e.g. the payees the user named in the request)."""
     field: str
 
 
@@ -101,6 +102,10 @@ class DictRegistry:
 
     def get(self, principal: str, ref: str) -> Any | None:
         return self._records.get(principal, {}).get(ref)
+
+    def add(self, principal: str, ref: str, value: Any) -> None:
+        """Trusted side only (e.g. the user adds a beneficiary in the bank's own app)."""
+        self._records.setdefault(principal, {})[ref] = value
 
     def find(self, principal: str, value: Any) -> str | None:
         try:
@@ -480,13 +485,14 @@ class Gateway:
         for src in p.sources:
             if isinstance(src, FromMandate):
                 if src.field in m.claims and not isinstance(raw, Mapping):
-                    claim = m.claims[src.field]
-                    try:
-                        same = norm(raw) == norm(claim)
-                    except Exception:  # noqa: BLE001
-                        same = False
-                    if same:
-                        return Tagged(self._coerce(p, claim), Origin.USER_CHANNEL, f"mandate:{src.field}")
+                    claims = m.claims[src.field]
+                    for claim in claims if isinstance(claims, list) else [claims]:
+                        try:
+                            same = norm(raw) == norm(claim)
+                        except Exception:  # noqa: BLE001
+                            same = False
+                        if same:
+                            return Tagged(self._coerce(p, claim), Origin.USER_CHANNEL, f"mandate:{src.field}")
             elif isinstance(src, FromRegistry):
                 reg = pack.registries[src.registry]
                 if isinstance(raw, Mapping):
