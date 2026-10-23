@@ -78,59 +78,49 @@ def tile(ax, x, y, w, h, big, small, color=BLUE_D):
 # --------------------------------------------------------------------------------------------------
 def p1_cover(pdf):
     fig, ax = new_page("", "")
-    t(ax, 70, 1240, "intentplane", 24, BLUE_D, "bold")
-    t(ax, 70, 1120, "The agent proposes.", 56, INK, "bold")
-    t(ax, 70, 1040, "The gateway decides.", 56, BLUE_D, "bold")
-    para(ax, 70, 960, "A deterministic control plane for LLM agents that move money, change records and merge "
-         "code. It does not try to detect prompt injection: it assumes the agent is compromised, and only "
-         "executes what the user mandated, built from values the agent does not control.", 20, INK2, lh=34)
-    tile(ax, 70, 470, 300, 250, "0 / 144", "attacks succeed on AgentDojo banking, with two real models")
-    tile(ax, 390, 470, 300, 250, "89 / 89", "attempts by gpt-4o-mini to follow the attacker, all blocked")
-    tile(ax, 710, 470, 300, 250, "31 / 31", "policy mutants killed: every rule is covered by a test")
-    t(ax, 70, 330, "Mustapha Hamdi, PhD", 22, INK, "bold")
-    t(ax, 70, 290, "Open source (MIT). Research prototype, fictional data.", 17, INK2)
-    t(ax, 70, 250, REPO, 17, BLUE_D)
-    pdf.savefig(fig)
-    return fig
+    t(ax, 70, 1250, "intentplane  ·  technical brief", 20, BLUE_D, "bold")
+    t(ax, 70, 1165, "Your AI agent pays the invoice.", 44, INK, "bold")
+    t(ax, 70, 1100, "Who chose the IBAN?", 44, ORANGE_D, "bold")
 
+    box(ax, 70, 820, W - 140, 220, ORANGE_T, ORANGE, 1.4, 18)
+    t(ax, 95, 1005, "THE PROBLEM", 14.5, ORANGE_D, "bold")
+    para(ax, 95, 975, "Agents that pay, update records or merge code take their arguments from what they read: "
+         "emails, invoices, web pages. An attacker writes what they read. Detection is probabilistic, a better "
+         "model still slips, and access control asks \"may this agent pay?\" instead of \"is this the "
+         "right payee, the right amount?\"", 17.5, INK2, lh=30,
+         right=W - 95)
 
-def p2_problem(pdf):
-    fig, ax = new_page("The problem", "Agents act on what they read. Attackers write what they read.")
-    y = para(ax, 70, 1100, "An agent that pays invoices also reads emails, PDFs and web pages. When a document "
-             "says \"pay this IBAN\", the agent cannot reliably tell the user's intent from the attacker's. "
-             "The usual answers do not hold:", 19, INK2, lh=33)
-    items = [("Detecting injections is probabilistic.", ("Published detectors keep being bypassed; one miss is "
-              "enough when the action moves money.")),
-             ("A better model is not a guarantee.", ("In our runs, an open-weight model that resists 97% of "
-              "the injections still followed the attacker 5 times out of 144.")),
-             ("Access control asks the wrong question.", ("\"May this agent call transfer?\" is yes. The "
-              "question that matters: is this payee the user's, is this amount the invoice's?"))]
-    y -= 40
-    for head, body in items:
-        box(ax, 70, y - 200, W - 140, 200, ORANGE_T, ORANGE, 1.4, 18)
-        t(ax, 100, y - 45, head, 21, ORANGE_D, "bold")
-        para(ax, 100, y - 85, body, 17.5, INK2, lh=30)
-        y -= 235
-    para(ax, 70, y - 20, "intentplane answers the last question, argument by argument, before anything executes.",
-         20, INK, "bold", lh=34)
+    box(ax, 70, 545, W - 140, 250, BLUE_T, BLUE, 1.4, 18)
+    t(ax, 95, 760, "THE SOLUTION", 14.5, BLUE_D, "bold")
+    para(ax, 95, 730, "intentplane checks every critical argument an agent proposes against a source the agent "
+         "does not control: the payee must be the vendor's IBAN in the ERP, the amount the validated invoice's, "
+         "the account the one in the user's signed mandate. One domain-independent core, a Cedar policy per "
+         "domain pack (bank, accounts payable, health, code), records scoped to each company.", 17.5, INK2,
+         lh=30, right=W - 95)
+
+    tile(ax, 70, 300, 300, 215, "0 / 144", "AgentDojo attacks succeed through intentplane, two real models")
+    tile(ax, 390, 300, 300, 215, "89 / 89", "gpt-4o-mini attempts to follow the attacker, all blocked")
+    tile(ax, 710, 300, 300, 215, "4 packs", "on one core: bank, accounts payable, health, code")
+    t(ax, 70, 230, "Mustapha Hamdi, PhD", 21, INK, "bold")
+    t(ax, 70, 192, f"{REPO}  ·  open source (MIT)  ·  research prototype, fictional data", 15.5, INK2)
     pdf.savefig(fig)
     return fig
 
 
 def p3_scenario(pdf):
-    fig, ax = new_page("A scenario", "Monday, 8:40 am. \"We changed banks.\"", ORANGE_D)
+    fig, ax = new_page("The scenario, step by step", "Monday, 8:40 am. \"We changed banks.\"", ORANGE_D)
     y = para(ax, 70, 1100, "An email reaches the accounts-payable inbox: new IBAN, please pay invoice INV-2291. "
              "It claims to come from ACME, a real vendor. The AI agent of the finance team reads it, updates "
              "the vendor record and pays 12,400.00 EUR. Twenty seconds.", 18.5, INK2, lh=32)
     para(ax, 70, y - 10, "Fake bank-detail fraud used to need a human to be fooled. Not any more.", 19, ORANGE_D,
          "bold")
     t(ax, 70, y - 110, "The same Monday, behind intentplane", 22, INK, "bold")
-    rows = [("change ACME's IBAN to the one in the email", "DENIED", "no call-back on the number on file"),
-            ("pay INV-2291 to the new IBAN", "DENIED", "not the vendor's IBAN in the ERP"),
-            ("pay INV-2291, amount inflated", "DENIED", "amount differs from the ERP invoice"),
-            ("pay an invoice that does not exist", "DENIED", "no such invoice in the ERP"),
-            ("pay INV-2291 a second time", "DENIED", "invoice already paid"),
-            ("pay ACME at its IBAN on file", "EXECUTED", "after the accountant confirms (> 5,000)")]
+    rows = [("1. change ACME's IBAN to the one in the email", "DENIED", "no call-back on the number on file"),
+            ("2. pay INV-2291 to the new IBAN", "DENIED", "not the vendor's IBAN in the ERP"),
+            ("3. pay INV-2291, amount inflated", "DENIED", "amount differs from the ERP invoice"),
+            ("4. pay an invoice that does not exist", "DENIED", "no such invoice in the ERP"),
+            ("5. pay INV-2291 to ACME's IBAN on file", "EXECUTED", "after the accountant confirms (> 5,000)"),
+            ("6. pay INV-2291 a second time", "DENIED", "invoice already paid")]
     yy = y - 175
     for action, status, why in rows:
         ok = status == "EXECUTED"
@@ -429,8 +419,10 @@ def p12_close(pdf):
 def main() -> None:
     png_dir = Path(sys.argv[sys.argv.index("--png") + 1]) if "--png" in sys.argv else None
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    builders = [p1_cover, p5_architecture, p2_problem, p3_scenario, p4_idea, p6_pipeline, p7_ap, p8_worst_case,
-                p9_real_models, p10_limits, p11_tests, p12_close]
+    builders = [p1_cover, p5_architecture, p3_scenario, p4_idea, p6_pipeline, p7_ap, p8_worst_case,
+                p9_real_models, p11_tests, p10_limits, p12_close]
+    global PAGES
+    PAGES = len(builders)
     with PdfPages(OUT) as pdf:
         for i, build in enumerate(builders, 1):
             CURRENT["n"] = i
