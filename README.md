@@ -125,7 +125,8 @@ approves everything lets 77% of the attacks through, although even then the budg
 possible". Utility figures from the replay (15/16, 9/16) and from the real runs (8/16, 13/16) measure
 different things: the replay executes the benchmark's reference solution, a real model may fail a task by
 itself (gpt-4o-mini completes 9/16 without any protection).
-Tables and raw per-run traces, including every gateway decision per tool call:
+Tables and raw per-run results (outcome and attribution of every run; runs recorded since the review
+also list every gateway decision per tool call):
 [`integrations/agentdojo/`](integrations/agentdojo/). After a review found that the bridge forwarded an update
 of an unknown scheduled transaction instead of refusing it, the 3 gpt-4o-mini scenarios that went through
 that path were rerun with the fix (previous files kept outside the repo).
