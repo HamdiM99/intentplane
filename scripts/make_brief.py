@@ -6,7 +6,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import matplotlib.image as mpimg
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.patches import FancyArrowPatch, FancyBboxPatch
@@ -27,7 +26,11 @@ SANS, MONO = ["Segoe UI", "DejaVu Sans"], ["Consolas", "DejaVu Sans Mono"]
 PAGES = 12
 
 
-def new_page(n, kicker, title, color=BLUE_D):
+CURRENT = {"n": 0}
+
+
+def new_page(kicker, title, color=BLUE_D):
+    n = CURRENT["n"]
     fig = plt.figure(figsize=(W / 100, H / 100), dpi=100, facecolor=SURF)
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, W)
@@ -74,7 +77,7 @@ def tile(ax, x, y, w, h, big, small, color=BLUE_D):
 
 # --------------------------------------------------------------------------------------------------
 def p1_cover(pdf):
-    fig, ax = new_page(1, "", "")
+    fig, ax = new_page("", "")
     t(ax, 70, 1240, "intentplane", 24, BLUE_D, "bold")
     t(ax, 70, 1120, "The agent proposes.", 56, INK, "bold")
     t(ax, 70, 1040, "The gateway decides.", 56, BLUE_D, "bold")
@@ -92,7 +95,7 @@ def p1_cover(pdf):
 
 
 def p2_problem(pdf):
-    fig, ax = new_page(2, "The problem", "Agents act on what they read. Attackers write what they read.")
+    fig, ax = new_page("The problem", "Agents act on what they read. Attackers write what they read.")
     y = para(ax, 70, 1100, "An agent that pays invoices also reads emails, PDFs and web pages. When a document "
              "says \"pay this IBAN\", the agent cannot reliably tell the user's intent from the attacker's. "
              "The usual answers do not hold:", 19, INK2, lh=33)
@@ -115,7 +118,7 @@ def p2_problem(pdf):
 
 
 def p3_scenario(pdf):
-    fig, ax = new_page(3, "A scenario", "Monday, 8:40 am. \"We changed banks.\"", ORANGE_D)
+    fig, ax = new_page("A scenario", "Monday, 8:40 am. \"We changed banks.\"", ORANGE_D)
     y = para(ax, 70, 1100, "An email reaches the accounts-payable inbox: new IBAN, please pay invoice INV-2291. "
              "It claims to come from ACME, a real vendor. The AI agent of the finance team reads it, updates "
              "the vendor record and pays 12,400.00 EUR. Twenty seconds.", 18.5, INK2, lh=32)
@@ -144,7 +147,7 @@ def p3_scenario(pdf):
 
 
 def p4_idea(pdf):
-    fig, ax = new_page(4, "The idea", "The agent can only propose. The gateway resolves the rest.")
+    fig, ax = new_page("The idea", "The agent can only propose. The gateway resolves the rest.")
     box(ax, 70, 690, 430, 400, "white", ORANGE, 2, 18)
     t(ax, 95, 1055, "What the agent sends", 20, ORANGE_D, "bold")
     for i, line in enumerate(['Proposal("invoice.pay", {', '  "invoice_ref": "INV-2291",', '  "payee_iban": "LT60...",',
@@ -174,21 +177,81 @@ def p4_idea(pdf):
 
 
 def p5_architecture(pdf):
-    fig, ax = new_page(5, "Architecture", "One gateway, one trust boundary, domain packs.")
-    img = mpimg.imread(ROOT / "docs" / "img" / "architecture.png")
-    h_img = (W - 80) * img.shape[0] / img.shape[1]
-    ax.imshow(img, extent=(40, W - 40, 1095 - h_img, 1095), zorder=2)
-    para(ax, 70, 1095 - h_img - 40, "Orange: everything the agent touches, untrusted. Blue: the control "
-             "plane, deterministic, no LLM in the decision. Purple: domain packs (bank, accounts payable, "
-             "health, code), each a set of contracts, trusted sources, a Cedar policy and an executor. Green: "
-             "the humans who approve and the systems acted upon, whose credentials live only behind the "
-             "gateway.", 17.5, INK2, lh=30)
+    """Portrait redraw of docs/img/architecture.png, read top to bottom, legible on a phone."""
+    fig, ax = new_page("Architecture", "One gateway between the agent and the world.")
+
+    def band(y, h, label, fill, edge, label_color):
+        box(ax, 40, y, W - 80, h, fill, edge, 1.4, 22)
+        t(ax, 62, y + h - 24, label, 14.5, label_color, "bold")
+
+    def card(x, y, w, h, title, sub, edge, fill="white", title_size=17, sub_size=13.5):
+        box(ax, x, y, w, h, fill, edge, 1.6, 14)
+        t(ax, x + 16, y + h - 26, title, title_size, INK, "bold")
+        para(ax, x + 16, y + h - 48, sub, sub_size, INK2, lh=20, right=x + w - 12)
+
+    # 1. untrusted
+    band(930, 170, "UNTRUSTED  ·  everything the agent touches", ORANGE_T, ORANGE, ORANGE_D)
+    cw = 300
+    for i, (title, sub) in enumerate((("What it reads", "emails, invoices, PDFs, web pages, tool outputs"),
+                                      ("LLM agent", "any model, assumed compromised"),
+                                      ("Proposal", "action + raw values only: no origin, scope or context"))):
+        x = 62 + i * (cw + 28)
+        card(x, 948, cw, 112, title, sub, ORANGE)
+        if i < 2:
+            arrow(ax, (x + cw, 1004), (x + cw + 28, 1004), ORANGE, 2.4)
+    arrow(ax, (868, 948), (868, 893), ORANGE, 3)
+
+    # 2. trusted control plane
+    band(520, 380, "TRUSTED CONTROL PLANE  ·  deterministic, no LLM in the decision", BLUE_T, BLUE, BLUE_D)
+    for i, (title, sub) in enumerate((("Signed mandate", "user, scopes, account, currency, budget"),
+                                      ("Systems of record", "beneficiaries, vendor master, ERP invoices"),
+                                      ("Context providers", "sanctions, Verification of Payee, consent"))):
+        card(62, 760 - i * 112, 300, 100, title, sub, BLUE, title_size=16, sub_size=13)
+        arrow(ax, (362, 810 - i * 112), (392, 810 - i * 112), BLUE, 2)
+    box(ax, 392, 540, 646, 320, "white", BLUE, 2.4, 18)
+    t(ax, 412, 835, "Gateway", 20, INK, "bold")
+    t(ax, 548, 835, "decides every proposal in 9 stages", 14.5, INK2)
+    stages = ["authn", "contract", "provenance", "delegation", "budget", "policy (Cedar)", "approval", "execute",
+              "receipt"]
+    gw, gh, gx, gy = 196, 58, 410, 742
+    for i, name in enumerate(stages):
+        r, c = divmod(i, 3)
+        hl = name in ("provenance", "policy (Cedar)")
+        x, y = gx + c * (gw + 12), gy - r * (gh + 12)
+        box(ax, x, y, gw, gh, "#f2effb" if hl else BLUE_T, VIOLET if hl else BLUE, 1.5 if hl else 1.1, 10)
+        t(ax, x + 14, y + gh / 2, f"{i + 1}", 14, MUTED, "bold")
+        t(ax, x + 40, y + gh / 2, name, 15.5, VIOLET if hl else BLUE_D, "bold")
+    box(ax, 410, 556, 610, 40, RED_T, RED, 1.2, 10)
+    t(ax, 715, 576, "any failure = DENY  ·  nothing executes without the gateway", 13.5, "#a12726", "bold",
+      ha="center")
+
+    # 3. domain packs
+    band(330, 170, "DOMAIN PACKS  ·  contracts, trusted sources, a Cedar policy, an executor", "#f7f5fd", VIOLET,
+         VIOLET)
+    pw = (W - 124 - 3 * 16) / 4
+    for i, (title, sub) in enumerate((("Bank", "own beneficiaries, step-up, cap"),
+                                      ("Accounts payable", "ERP invoice, IBAN on file, paid once"),
+                                      ("Health", "open encounter, consent"),
+                                      ("Code", "CI-attested commit, review"))):
+        card(62 + i * (pw + 16), 348, pw, 112, title, sub, VIOLET, fill="#f2effb", title_size=15.5, sub_size=12.5)
+
+    # 4. humans and systems
+    band(90, 220, "HUMANS AND SYSTEMS", GREEN_T, GREEN, "#14653a")
+    for i, (title, sub) in enumerate((("Approvers", ("the user (step-up), a second person (four eyes), "
+                                                    "signing the exact operation")),
+                                      ("Systems acted upon", ("core banking, ERP, EHR, Git forge: credentials "
+                                                             "only behind the gateway")),
+                                      ("Receipts", ("hash-chained: what the agent sent, where each value came "
+                                                   "from, who approved")))):
+        card(62 + i * (cw + 28), 108, cw, 160, title, sub, GREEN, sub_size=13.5)
+    arrow(ax, (715, 520), (715, 500), BLUE, 2)
+    arrow(ax, (715, 330), (715, 310), VIOLET, 2)
     pdf.savefig(fig)
     return fig
 
 
 def p6_pipeline(pdf):
-    fig, ax = new_page(6, "How a proposal is decided", "Nine stages. Any failure is a refusal.")
+    fig, ax = new_page("How a proposal is decided", "Nine stages. Any failure is a refusal.")
     stages = [("authn", "the mandate token is genuine, unexpired, not revoked"),
               ("contract", "known action, exact parameter set, types, validators"),
               ("provenance", "every critical value equals a value from a trusted source, for that user or company"),
@@ -215,7 +278,7 @@ def p6_pipeline(pdf):
 
 
 def p7_ap(pdf):
-    fig, ax = new_page(7, "Accounts-payable pack", "Protect the payment and its vendor record.")
+    fig, ax = new_page("Accounts-payable pack", "Protect the payment and its vendor record.")
     y = para(ax, 70, 1100, "Bank-detail fraud attacks the vendor master before the payment. So the pack "
              "governs both actions:", 18.5, INK2, lh=32)
     rules = [("vendor.update_bank_details", [("call-back on the phone number already on file, never the one "
@@ -248,7 +311,7 @@ def p7_ap(pdf):
 
 
 def p8_worst_case(pdf):
-    fig, ax = new_page(8, "Results 1: worst case", "Even if the agent obeys the attacker.")
+    fig, ax = new_page("Results 1: worst case", "Even if the agent obeys the attacker.")
     para(ax, 70, 1100, "AgentDojo banking benchmark (ETH Zurich), 144 injection scenarios. Replayed without an "
          "LLM: the agent executes the attacker's goal verbatim, then the user's task. Model-independent.",
          18, INK2, lh=31)
@@ -279,7 +342,7 @@ def p8_worst_case(pdf):
 
 
 def p9_real_models(pdf):
-    fig, ax = new_page(9, "Results 2: real models", "Better models are fooled less often. None is safe every time.")
+    fig, ax = new_page("Results 2: real models", "Better models are fooled less often. None is safe every time.")
     para(ax, 70, 1100, "Same benchmark, real agents (AgentDojo's important_instructions attack, one run each). "
          "Each bar: the scenarios, out of 144, in which the model tried to carry out the attacker's action.",
          18, INK2, lh=31)
@@ -313,7 +376,7 @@ def p9_real_models(pdf):
 
 
 def p10_limits(pdf):
-    fig, ax = new_page(10, "What it costs, what is not solved", "Honest limits.", ORANGE_D)
+    fig, ax = new_page("What it costs, what is not solved", "Honest limits.", ORANGE_D)
     items = [("The human who signs.", ("A human who approves everything lets 77% of worst-case attacks "
               "through. Approval fatigue is the open problem.")),
              ("Utility without a human.", ("Payments to payees the user never named are refused: 9 of 16 "
@@ -332,7 +395,7 @@ def p10_limits(pdf):
 
 
 def p11_tests(pdf):
-    fig, ax = new_page(11, "How it is tested", "Every claim is a test that can fail.")
+    fig, ax = new_page("How it is tested", "Every claim is a test that can fail.")
     tile(ax, 70, 810, 455, 280, "43 tests", "regression tests for every attack found in reviews, incl. "
          "concurrency and cross-company cases")
     tile(ax, 555, 810, 455, 280, "6,000", "random proposals over what an attacker controls, checked by an "
@@ -349,7 +412,7 @@ def p11_tests(pdf):
 
 
 def p12_close(pdf):
-    fig, ax = new_page(12, "Try it", "The code, the tests and the scenarios are open.")
+    fig, ax = new_page("Try it", "The code, the tests and the scenarios are open.")
     box(ax, 70, 760, W - 140, 330, "#16181d", "#0d0f12", 1, 16)
     for i, line in enumerate(["git clone https://" + REPO, "pip install -e \".[dev,agentdojo]\"",
                               "pytest", "python demo_ap.py", "python -m integrations.agentdojo.run_replay"]):
@@ -366,10 +429,11 @@ def p12_close(pdf):
 def main() -> None:
     png_dir = Path(sys.argv[sys.argv.index("--png") + 1]) if "--png" in sys.argv else None
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    builders = [p1_cover, p2_problem, p3_scenario, p4_idea, p5_architecture, p6_pipeline, p7_ap, p8_worst_case,
+    builders = [p1_cover, p5_architecture, p2_problem, p3_scenario, p4_idea, p6_pipeline, p7_ap, p8_worst_case,
                 p9_real_models, p10_limits, p11_tests, p12_close]
     with PdfPages(OUT) as pdf:
         for i, build in enumerate(builders, 1):
+            CURRENT["n"] = i
             fig = build(pdf)
             if png_dir:
                 png_dir.mkdir(parents=True, exist_ok=True)
