@@ -38,7 +38,7 @@ def build(open_encounters: Mapping[str, Mapping[str, str]], research_consent: It
     consent = set(research_consent)
     reads: list[dict] = []
 
-    def execute(values) -> dict:
+    def execute(values, mandate) -> dict:
         reads.append(dict(values))
         return {"patient_id": values["patient_id"], "section": values["section"], "data": "<record>"}
 

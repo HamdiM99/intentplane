@@ -107,10 +107,10 @@ class IntentplaneRuntime(FunctionsRuntime):
         registry = {PRINCIPAL: {f"known-{n}": iban for n, iban in enumerate(known)}} \
             if self.cfg.mandate == "prompt+known" else {}
         bank_pack, _ = bank.build(registry)
-        bank_pack.executors["payment.transfer"] = lambda values: self._pending()
+        bank_pack.executors["payment.transfer"] = lambda values, mandate: self._pending()
         account_pack = Pack("account", [PASSWORD, USER_INFO],
                             ACCOUNT_PDP,
-                            executors={c.name: (lambda values: self._pending()) for c in (PASSWORD, USER_INFO)})
+                            executors={c.name: (lambda values, mandate: self._pending()) for c in (PASSWORD, USER_INFO)})
         auth = Authority()
         approvals = Approvals({PRINCIPAL: b"emma-device-key"})
         gw = Gateway([bank_pack, account_pack], auth, approvals)

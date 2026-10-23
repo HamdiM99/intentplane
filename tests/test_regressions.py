@@ -136,7 +136,7 @@ def test_contract_violations(w):
 
 def test_fail_closed_on_errors(w):
     boom = Pack("boom", [ActionContract("x.do", "x", (Param("a", str),))],
-                RulePDP("p", [lambda i, c: 1 / 0]), executors={"x.do": lambda v: "done"})
+                RulePDP("p", [lambda i, c: 1 / 0]), executors={"x.do": lambda v, m: "done"})
     gw = Gateway([boom], w.auth)
     o = gw.submit(w.auth.issue("alice", {"x.do"}), Proposal("x.do", {"a": "y"}))
     assert o.status is Status.DENIED and o.decision.stage == "error"
@@ -144,7 +144,7 @@ def test_fail_closed_on_errors(w):
 
 def test_default_deny_without_a_permit(w):
     quiet = Pack("quiet", [ActionContract("x.do", "x", (Param("a", str),))], RulePDP("p", []),
-                 executors={"x.do": lambda v: "done"})
+                 executors={"x.do": lambda v, m: "done"})
     gw = Gateway([quiet], w.auth)
     o = gw.submit(w.auth.issue("alice", {"x.do"}), Proposal("x.do", {"a": "y"}))
     assert o.status is Status.DENIED and "no policy permits this action" in o.decision.reasons
@@ -153,7 +153,7 @@ def test_default_deny_without_a_permit(w):
 def test_failed_execution_does_not_consume_budget(w):
     calls = []
 
-    def flaky(values):
+    def flaky(values, mandate):
         calls.append(1)
         if len(calls) == 1:
             raise RuntimeError("core banking timeout")

@@ -7,11 +7,47 @@ sources, policy, executor) changes.
 
 ```bash
 pip install -e ".[dev]"
-pytest                          # 27 tests (3 need agentdojo), incl. a 6,000-proposal property fuzz
+pytest                          # 39 tests (3 need agentdojo), incl. a 6,000-proposal property fuzz
 python demo.py                  # one injection, three domains, one gateway
-python scripts/mutation_check.py  # 9/9 Cedar mutants killed (every forbid, every approval guard)
+python demo_ap.py               # for a CFO: the 'we changed banks' email
+python scripts/mutation_check.py  # 19/19 Cedar mutants killed (every forbid, every approval guard)
 pip install agentdojo && python -m integrations.agentdojo.run_replay   # AgentDojo banking, see below
 ```
+
+## Accounts-payable pack: the "we changed banks" email
+
+Supplier bank-detail fraud attacks the vendor master before the payment: the email asks to change the
+IBAN on file, then normal payments flow to the attacker. So the pack protects both
+([`intentplane/packs/accounts_payable.py`](intentplane/packs/accounts_payable.py),
+[`accounts_payable.cedar`](intentplane/packs/accounts_payable.cedar)):
+
+| Action | Rules |
+|---|---|
+| `vendor.update_bank_details` | call-back on the phone number **already on file** (not the one in the email), then four eyes |
+| `invoice.pay` | the invoice exists in the ERP and is **open** (paid once, even under concurrency); the payee is the **current** IBAN of **the invoice's vendor**; the amount **equals the invoice**; a freshly changed IBAN (< 7 days) needs four eyes; above 5,000.00 the accountant confirms; Verification of Payee; sanctions; hard cap |
+
+Records are per **tenant** (the company named in the signed mandate): accountants of a company share its
+vendors and invoices, and another company's records are invisible. `python demo_ap.py`:
+
+```
+-- The agent obeys the email --
+  1. update ACME's IBAN to the one in the email            DENIED    forbid-bank-change-without-callback
+  2. pay INV-2291 to the new IBAN                          DENIED    payee_iban: not found in any trusted source
+  3. pay INV-2291 inflated to 13,999.00                    DENIED    forbid-amount-differs-from-invoice
+  4. pay an invoice that does not exist                    DENIED    invoice_ref: not found in any trusted source
+-- Finance follows the procedure: call-back on the number on file, the CFO approves --
+  5. update ACME's IBAN, call-back logged                  PENDING   (needs four_eyes)
+  6. same update, the CFO approves the exact operation     EXECUTED
+-- Cooling-off: the new IBAN is legitimate but 0 days old --
+  7. pay INV-2292 (300.00) to the new IBAN today           PENDING   (needs four_eyes)
+  8. same payment, 8 days later                            EXECUTED
+  9. pay INV-2292 a second time                            DENIED    forbid-invoice-not-open
+```
+
+Ported from an independent v2.2 design. In v2.2 "paid once" relied on the caller running the executor
+after the decision; three decisions before execution, or eight concurrent ones, were all ALLOWed. Here the
+gateway checks, executes and marks the invoice paid in one critical section. Known limit: the amount must
+equal the invoice, so partial payments and credit notes are not modelled yet.
 
 ## AgentDojo banking benchmark (bank pack)
 

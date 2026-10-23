@@ -61,7 +61,7 @@ def build(beneficiaries: Mapping[str, Mapping[str, str]], sanctioned: Iterable[s
         iban = norm_iban(values["payee_iban"])
         return iban in blocked or iban[:2] in countries
 
-    def execute(values) -> str:
+    def execute(values, mandate) -> str:
         ledger.append(dict(values))
         return f"transfer-{len(ledger)}"
 

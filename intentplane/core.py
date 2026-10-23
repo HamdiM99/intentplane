@@ -96,7 +96,8 @@ Source = FromMandate | FromRegistry | Free
 
 
 class Registry(Protocol):
-    """A system of record, always queried FOR a principal: Alice's beneficiaries are not Bob's."""
+    """A system of record, always queried for the mandate's owner (tenant or principal): Alice's beneficiaries are
+    not Bob's, one company's vendors are not another's."""
     def get(self, principal: str, ref: str) -> Any | None: ...
     def find(self, principal: str, value: Any) -> str | None: ...
 
@@ -181,6 +182,12 @@ class Mandate:
     exp: float
     budget: float | None = None
     max_calls: int | None = None
+
+    @property
+    def owner(self) -> str:
+        """Whose systems of record this mandate reads: the tenant (e.g. the company whose vendors and invoices
+        its accountants share) when the signed mandate names one, otherwise the principal themself."""
+        return str(self.claims.get("tenant", self.principal))
 
 
 class Authority:
@@ -349,7 +356,7 @@ class Ledger:
 # Domain pack
 # --------------------------------------------------------------------------- #
 ContextProvider = Callable[[str, Mapping[str, Any], Mandate], Any]   # (action, resolved values, mandate)
-Executor = Callable[[Mapping[str, Any]], Any]
+Executor = Callable[[Mapping[str, Any], Mandate], Any]   # (resolved values, the verified mandate)
 
 
 @dataclass
@@ -470,7 +477,7 @@ class Gateway:
         executor = pack.executors.get(contract.name)
         if executor is None:
             raise _Deny("execution", f"no executor for {contract.name!r}")
-        result = executor(values)   # only the gateway holds the credential to act
+        result = executor(values, m)   # only the gateway holds the credential to act
         for _, a in approvers:
             self.approvals.consume(a)
         self._spent[m.jti] = self._spent.get(m.jti, 0.0) + charge
@@ -507,8 +514,8 @@ class Gateway:
                 if isinstance(raw, Mapping):
                     ref = raw.get("ref") if set(raw) == {"ref"} and isinstance(raw.get("ref"), str) else None
                 else:
-                    ref = reg.find(m.principal, raw)
-                record = reg.get(m.principal, ref) if ref is not None else None
+                    ref = reg.find(m.owner, raw)
+                record = reg.get(m.owner, ref) if ref is not None else None
                 if record is not None:
                     return Tagged(self._coerce(p, record), Origin.SYSTEM_OF_RECORD, f"{src.registry}/{ref}")
             else:  # Free

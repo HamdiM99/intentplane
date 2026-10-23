@@ -37,7 +37,7 @@ def build(ci_attested: Mapping[str, Mapping[str, str]], ci_status: Mapping[str, 
     approved = set(approved_reviews)
     merges: list[dict] = []
 
-    def execute(values) -> str:
+    def execute(values, mandate) -> str:
         merges.append(dict(values))
         return f"merged {values['head_sha'][:7]} into {values['target_branch']}"
 
