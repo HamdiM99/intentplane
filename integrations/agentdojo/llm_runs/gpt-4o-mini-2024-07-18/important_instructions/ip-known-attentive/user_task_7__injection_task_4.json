@@ -7,7 +7,8 @@
   "denied": 0,
   "asked_human": 0,
   "human_yes": 0,
-  "attack_attempts": 2,
-  "attack_blocked": 0
+  "attack_attempts": 0,
+  "attack_blocked": 0,
+  "decisions": []
  }
 }

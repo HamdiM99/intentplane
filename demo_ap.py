@@ -46,7 +46,7 @@ step("3. pay INV-2291 inflated to 13,999.00", pay("INV-2291", OLD, 1_399_900))
 step("4. pay an invoice that does not exist", pay("INV-FAKE", OLD, 100_000))
 
 print("\n-- Finance follows the procedure: call-back on the number on file, the CFO approves --")
-erp.of("blue-sparrow")["callbacks"][("V-100", ap.norm_iban(NEW))] = PHONE
+erp.log_callback("blue-sparrow", "V-100", NEW, PHONE)
 pending = step("5. update ACME's IBAN, call-back logged", update())
 step("6. same update, the CFO approves the exact operation", update(), (approvals.approve("cfo", pending.op_hash),))
 

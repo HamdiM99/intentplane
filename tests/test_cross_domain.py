@@ -56,3 +56,15 @@ def test_one_gateway_all_domains_strict_delegation(w):
                                                        "amount_cents": 1, "currency": "EUR", "reference": "r"}))
     assert o.status is Status.DENIED   # a clinician's mandate does not move money
     assert w.gw.catalog.names() == ["ehr.read_record", "payment.transfer", "repo.merge"]
+
+
+def test_health_emergency_is_four_eyes_for_every_section(w):
+    tok = w.auth.issue("dr_alice", {"ehr.read_record"}, {"purpose": "emergency"})
+    o = w.gw.submit(tok, Proposal("ehr.read_record", {"patient_id": "P-1234", "section": "labs", "purpose": "emergency"}))
+    assert o.status is Status.PENDING and o.decision.effect is Effect.FOUR_EYES
+
+
+def test_health_research_never_reads_the_full_record(w):
+    tok = w.auth.issue("dr_alice", {"ehr.read_record"}, {"purpose": "research"})
+    o = w.gw.submit(tok, Proposal("ehr.read_record", {"patient_id": "P-5555", "section": "full", "purpose": "research"}))
+    assert o.status is Status.DENIED and w.reads == []   # consent on file, but research is limited to sections

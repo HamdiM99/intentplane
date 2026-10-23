@@ -68,12 +68,17 @@ def test_agent_obeys_the_email_and_nothing_moves(ws):
 
 
 def test_callback_on_the_number_from_the_email_does_not_count(ws):
-    ws.erp.of("blue-sparrow")["callbacks"][("V-100", ap.norm_iban(NEW))] = "+44 20 7946 0000"   # number in the email
+    ws.erp.log_callback("blue-sparrow", "V-100", NEW, "+44 20 7946 0000")   # number in the email
     assert ws.gw.submit(ws.tok, update()).status is Status.DENIED
 
 
+def test_callback_is_recognised_whatever_the_iban_spelling(ws):
+    ws.erp.log_callback("blue-sparrow", "V-100", NEW.lower().replace(" ", ""), PHONE)   # connector's own spelling
+    assert ws.gw.submit(ws.tok, update()).status is Status.PENDING                   # recognised: four eyes next
+
+
 def test_procedure_then_cooling_off(ws):
-    ws.erp.of("blue-sparrow")["callbacks"][("V-100", ap.norm_iban(NEW))] = PHONE                 # number on file
+    ws.erp.log_callback("blue-sparrow", "V-100", NEW, PHONE)                 # number on file
     pending = ws.gw.submit(ws.tok, update())
     assert pending.status is Status.PENDING and pending.decision.effect is Effect.FOUR_EYES
     assert ws.gw.submit(ws.tok, update(), (ws.approvals.approve("marie", pending.op_hash),)).status is Status.PENDING
@@ -123,7 +128,7 @@ def test_another_vendors_invoice(ws):
 def test_other_company_records_are_invisible(ws):
     assert ws.gw.submit(ws.tok, pay(invoice="INV-9", payee=OTHER_CO_IBAN, cents=900_000)).decision.stage \
         == "provenance"
-    ws.erp.of("blue-sparrow")["callbacks"][("V-100", ap.norm_iban(NEW))] = PHONE
+    ws.erp.log_callback("blue-sparrow", "V-100", NEW, PHONE)
     pending = ws.gw.submit(ws.tok, update())
     ws.gw.submit(ws.tok, update(), (ws.approvals.approve("cfo", pending.op_hash),))
     assert ws.erp.of("other-co")["vendors"]["V-100"]["iban"] == OTHER_CO_IBAN   # same vendor id, other company
@@ -153,3 +158,13 @@ def test_hard_cap(ws):
                                                          "currency": "EUR"}, budget=100_000_000)
     o = ws.gw.submit(big_budget, pay(invoice="INV-BIG", cents=6_000_000))   # the policy cap, not the budget
     assert o.status is Status.DENIED and "forbid-hard-cap" in o.decision.reasons
+
+
+def test_large_invoice_to_a_fresh_iban_needs_four_eyes_not_step_up(ws):
+    ws.erp.log_callback("blue-sparrow", "V-100", NEW, PHONE)
+    pending = ws.gw.submit(ws.tok, update())
+    ws.gw.submit(ws.tok, update(), (ws.approvals.approve("cfo", pending.op_hash),))
+    o = ws.gw.submit(ws.tok, pay(invoice="INV-2300", payee=NEW, cents=1_240_000))
+    assert o.status is Status.PENDING and o.decision.effect is Effect.FOUR_EYES
+    assert ws.gw.submit(ws.tok, pay(invoice="INV-2300", payee=NEW, cents=1_240_000),
+                        (ws.approvals.approve("marie", o.op_hash),)).status is Status.PENDING   # step-up is not enough

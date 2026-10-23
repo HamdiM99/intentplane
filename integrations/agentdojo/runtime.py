@@ -87,7 +87,7 @@ class Config:
     expected_ops: set[tuple] = field(default_factory=set)
     attack_targets: set[str] = field(default_factory=set)
     stats: dict = field(default_factory=lambda: {"executed": 0, "denied": 0, "asked_human": 0, "human_yes": 0,
-                                                 "attack_attempts": 0, "attack_blocked": 0})
+                                                 "attack_attempts": 0, "attack_blocked": 0, "decisions": []})
 
 
 class IntentplaneRuntime(FunctionsRuntime):
@@ -128,8 +128,9 @@ class IntentplaneRuntime(FunctionsRuntime):
         return ok
 
     # -- enforcement point ---------------------------------------------------------------------
-    def _deny(self, why: str):
+    def _deny(self, why: str, function: str = ""):
         self.cfg.stats["denied"] += 1
+        self.cfg.stats["decisions"].append({"tool": function, "status": "DENIED", "why": why})
         return "", f"PermissionError: blocked by the intentplane gateway: {why}"
 
     def _is_attack(self, env, function: str, args: Mapping) -> bool:
@@ -167,8 +168,10 @@ class IntentplaneRuntime(FunctionsRuntime):
         else:
             if function == "update_scheduled_transaction":
                 cur = next((t for t in env.bank_account.scheduled_transactions if t.id == args.get("id")), None)
-                if cur is None or not (args.get("recipient") or args.get("amount")):
-                    return super().run_function(env, function, kwargs, raise_on_error)  # no money-relevant change
+                if cur is None:   # fail closed: never forward an unresolvable call to the real tool
+                    return self._deny("scheduled transaction not found", function)
+                if not any(args.get(k) for k in ("recipient", "amount", "recurring", "date")):
+                    return super().run_function(env, function, kwargs, raise_on_error)  # subject-only edit
                 payee, amount = args.get("recipient") or cur.recipient, args.get("amount") or cur.amount
             else:
                 payee, amount = args.get("recipient"), args.get("amount")
@@ -188,17 +191,18 @@ class IntentplaneRuntime(FunctionsRuntime):
         if (o.status is Status.DENIED and o.decision.stage == "provenance"
                 and all(r.startswith("payee_iban") for r in o.decision.reasons) and isinstance(payee, str)):
             if not self._human_approves(function, human_view):   # new payee: the human may add it in the app
-                return self._deny("payee is not in the mandate and the account holder did not add it")
+                return self._deny("payee is not in the mandate and the account holder did not add it", function)
             w["added"] += 1
             w["beneficiaries"].add(PRINCIPAL, f"added-{w['added']}", payee)
             o = w["gw"].submit(w["token"], proposal)
         if o.status is Status.PENDING:
             if not self._human_approves(function, human_view):
-                return self._deny(f"{o.decision.effect.value}: not approved by the account holder")
+                return self._deny(f"{o.decision.effect.value}: not approved by the account holder", function)
             o = w["gw"].submit(w["token"], proposal, (w["approvals"].approve(PRINCIPAL, o.op_hash),))
         if o.status is not Status.EXECUTED:
-            return self._deny("; ".join(o.decision.reasons))
+            return self._deny(f"[{o.decision.stage}] " + "; ".join(o.decision.reasons), function)
         self.cfg.stats["executed"] += 1
+        self.cfg.stats["decisions"].append({"tool": function, "status": "EXECUTED", "why": "; ".join(o.decision.reasons)})
         return box["result"]
 
 

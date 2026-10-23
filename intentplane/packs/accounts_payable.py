@@ -68,6 +68,11 @@ class ERP:
     def of(self, tenant: str) -> dict:
         return self.t.get(tenant, {"vendors": {}, "invoices": {}, "callbacks": {}})
 
+    def log_callback(self, tenant: str, vendor_id: str, new_iban: str, phone: str) -> None:
+        """Finance records that it called the vendor about `new_iban` on `phone` (trusted side only). The IBAN is
+        normalised here, so a connector cannot store a spelling the gateway would not recognise."""
+        self.t[tenant]["callbacks"][(vendor_id, norm_iban(new_iban))] = phone
+
 
 class _Ids:
     """Registry view: ref == value, valid if the record exists for that tenant."""
