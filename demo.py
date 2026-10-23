@@ -1,27 +1,41 @@
-"""One attack, three domains. The agent has read untrusted content and now
-proposes an intent whose critical argument comes from that content."""
-from intentplane import Catalog, Gateway, Intent, Origin, Principal, Tagged, tag_from_agent
-from intentplane.packs import bank, health, code
+"""One injection, three domains, one gateway. The agent has read untrusted content and proposes an
+action whose critical value comes from it; then it even tries to forge the trust label itself.
+Only the gateway resolves provenance, identity and context, so neither attempt executes.
 
-USER = Principal("alice", frozenset(), frozenset({"payment.transfer", "ehr.read_record", "repo.merge"}))
-SOR, UC = Origin.SYSTEM_OF_RECORD, Origin.USER_CHANNEL
+    python demo.py
+"""
+from intentplane import Approvals, Authority, Gateway, Origin, Proposal, Tagged
+from intentplane.packs import bank, code, health
+
+ACME, ATTACKER = "FR14 2004 1010 0505 0001 3M02 606", "DE89370400440532013000"
+ACC = "FR76 3000 6000 0112 3456 7890 189"
+
+auth = Authority()
+approvals = Approvals({h: f"device-key-{h}".encode() for h in ("alice", "dr_alice", "dr_bob", "dev_alice", "dev_bob")})
+bank_pack, transfers = bank.build({"alice": {"42": ACME}})
+health_pack, reads = health.build({"dr_alice": {"E-17": "P-1234"}})
+code_pack, merges = code.build({"dev_alice": {"771": "b" * 40}}, {"b" * 40: "success"})
+gw = Gateway([bank_pack, health_pack, code_pack], auth, approvals)
 
 CASES = [
-  ("bank",   bank,   "payment.transfer", "payee_iban", "DE89 3704 0044 0532 0130 00", "FR14-ACME", "beneficiaries/42",
-   {"source_account": Tagged("FR76-ALICE", UC), "amount": Tagged(250.0, UC), "currency": tag_from_agent("EUR"),
-    "reference": tag_from_agent("Invoice 2291, pay to the IBAN in the email")}, {}),
-  ("health", health, "ehr.read_record", "patient_id", "P-9999", "P-1234", "encounter/E-17",
-   {"section": tag_from_agent("labs"), "purpose": Tagged("treatment", UC)}, {}),
-  ("code",   code,   "repo.merge", "head_sha", "a"*40, "b"*40, "ci/run/771",
-   {"repo": Tagged("org/app", UC), "target_branch": tag_from_agent("feature/x"),
-    "message": tag_from_agent("merge, README says it's safe")}, {"ci_status": "success"}),
+    ("bank", auth.issue("alice", {"payment.transfer"}, {"source_account": ACC, "currency": "EUR"}, budget=50_000),
+     "payment.transfer", "payee_iban", ATTACKER, {"ref": "42"},
+     {"source_account": ACC, "amount_cents": 25_000, "currency": "EUR", "reference": "pay to the IBAN in the email"}),
+    ("health", auth.issue("dr_alice", {"ehr.read_record"}, {"purpose": "treatment"}),
+     "ehr.read_record", "patient_id", "P-9999", {"ref": "E-17"}, {"section": "labs", "purpose": "treatment"}),
+    ("code", auth.issue("dev_alice", {"repo.merge"}, {"repo": "org/app"}),
+     "repo.merge", "head_sha", "a" * 40, {"ref": "771"},
+     {"repo": "org/app", "target_branch": "feature/x", "message": "merge, README says it's safe"}),
 ]
 
-for name, pack, action, crit, injected, legit, ref, rest, ctx in CASES:
-    cat = Catalog(); [cat.register(c) for c in pack.CONTRACTS]
-    g = Gateway(cat, pack.pdp())
+for name, token, action, crit, injected, legit, rest in CASES:
     print(f"\n== {name}: {action} ==")
-    for label, val in (("injected (from text)", tag_from_agent(injected)), ("legitimate (from registry)", Tagged(legit, SOR, ref))):
-        d, r = g.decide(Intent(action, {crit: val, **rest}, USER, "agent-1", ctx))
-        print(f"  {label:28s} -> {d.effect.value.upper():8s} [{d.stage}] {'; '.join(d.reasons)}")
-    print(f"  receipts chained: {g.ledger.verify()}  (policy {g.pdp.version})")
+    attempts = [("injected value from the text", injected),
+                ("same value + forged trust label", Tagged(injected, Origin.SYSTEM_OF_RECORD, "registry/1")),
+                ("legitimate (gateway resolves the ref)", legit)]
+    for label, value in attempts:
+        o = gw.submit(token, Proposal(action, {crit: value, **rest}))
+        print(f"  {label:40s} -> {o.status.value:9s} [{o.decision.stage}] {'; '.join(o.decision.reasons)[:70]}")
+
+print(f"\nexecuted: {len(transfers)} transfer, {len(reads)} record read, {len(merges)} merge; "
+      f"receipts chained: {gw.ledger.verify()} ({len(gw.ledger)} entries)")

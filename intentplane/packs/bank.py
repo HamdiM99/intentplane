@@ -1,36 +1,75 @@
-"""Bank pack: payee must come from the beneficiaries registry, amount is capped,
-large amounts step up. The core does not know what an IBAN is."""
-from intentplane.core import *  # noqa: F401,F403
-from intentplane.core import Decision, Effect, Origin, Param, ActionContract, Intent, RulePDP, rule_strict_delegation
+"""Bank pack (the AgenticZeroTrust behaviour on the generic core).
 
-STEP_UP_ABOVE = 1_000.0
-HARD_CAP = 10_000.0
+payee: the one the user named in the mandate, or one of HIS registered beneficiaries.
+source account and currency: bound in the mandate. Amount: chosen by the agent, but charged
+against the mandate's cumulative budget and checked by Cedar (step-up above 1,000.00, hard cap
+10,000.00). Sanctions come from the gateway's own list, never from the agent.
+Amounts are integer cents (Cedar has no float).
+"""
+from __future__ import annotations
+
+import re
+from collections.abc import Iterable, Mapping
+
+from intentplane.cedar_pdp import CedarPDP
+from intentplane.core import ActionContract, DictRegistry, FromMandate, FromRegistry, Pack, Param
+
+
+def norm_iban(v: object) -> str:
+    if not isinstance(v, str) or not v.isascii():   # look-alike characters are not folded: they stay different
+        raise ValueError("not an ASCII IBAN")
+    return re.sub(r"\s+", "", v).upper()
+
 
 TRANSFER = ActionContract(
-    name="payment.transfer", resource="account", version="bank-1",
+    name="payment.transfer", resource="account", version="bank-2", budget_param="amount_cents",
     params=(
-        Param("source_account", str, critical=True, allowed_origins=frozenset({Origin.USER_CHANNEL, Origin.SYSTEM_OF_RECORD})),
-        Param("payee_iban", str, critical=True, allowed_origins=frozenset({Origin.SYSTEM_OF_RECORD})),
-        Param("amount", float, critical=True, allowed_origins=frozenset({Origin.USER_CHANNEL, Origin.SYSTEM_OF_RECORD}),
-              validate=lambda a: a > 0),
-        Param("currency", str, validate=lambda c: c in {"EUR", "USD"}),
-        Param("reference", str),   # free text, not critical
+        Param("source_account", str, critical=True, sources=(FromMandate("source_account"),), normalize=norm_iban),
+        Param("payee_iban", str, critical=True, sources=(FromMandate("payee"), FromRegistry("beneficiaries")),
+              normalize=norm_iban),
+        Param("amount_cents", int, validate=lambda a: a > 0),
+        Param("currency", str, critical=True, sources=(FromMandate("currency"),)),
+        Param("reference", str),
     ),
 )
 
-def rule_hard_cap(i: Intent, c: ActionContract):
-    if i.action == "payment.transfer" and i.params["amount"].value > HARD_CAP:
-        return Decision(Effect.DENY, "policy", (f"amount above hard cap {HARD_CAP}",), "")
+POLICIES = """
+@id("permit-transfer")
+permit (principal, action == Action::"payment.transfer", resource)
+when { context.params.amount_cents <= 100000 };
 
-def rule_step_up(i: Intent, c: ActionContract):
-    if i.action == "payment.transfer" and i.params["amount"].value > STEP_UP_ABOVE:
-        return Decision(Effect.STEP_UP, "policy", ("amount requires strong authentication",), "")
+@id("step-up-large-transfer")
+permit (principal, action == Action::"payment.transfer", resource)
+when { context.params.amount_cents > 100000 };
 
-def rule_sanctions(i: Intent, c: ActionContract):
-    if i.action == "payment.transfer" and i.context.get("payee_sanctioned"):
-        return Decision(Effect.DENY, "policy", ("payee on sanctions list",), "")
+@id("forbid-hard-cap")
+forbid (principal, action == Action::"payment.transfer", resource)
+when { context.params.amount_cents > 1000000 };
 
-def pdp() -> RulePDP:
-    return RulePDP("bank-policy-1", [rule_strict_delegation, rule_sanctions, rule_hard_cap, rule_step_up])
+@id("forbid-sanctioned-payee")
+forbid (principal, action == Action::"payment.transfer", resource)
+when { context.payee_sanctioned };
+"""
 
-CONTRACTS = [TRANSFER]
+
+def build(beneficiaries: Mapping[str, Mapping[str, str]], sanctioned: Iterable[str] = (),
+          sanctioned_countries: Iterable[str] = ("KP", "IR")) -> tuple[Pack, list]:
+    """beneficiaries: principal -> {ref: IBAN}. Returns the pack and the (mock) core-banking ledger."""
+    blocked = {norm_iban(i) for i in sanctioned}
+    countries = set(sanctioned_countries)
+    ledger: list[dict] = []
+
+    def is_sanctioned(action, values, mandate) -> bool:
+        iban = norm_iban(values["payee_iban"])
+        return iban in blocked or iban[:2] in countries
+
+    def execute(values) -> str:
+        ledger.append(dict(values))
+        return f"transfer-{len(ledger)}"
+
+    pack = Pack("bank", [TRANSFER], CedarPDP("bank-policy-2", POLICIES),
+                registries={"beneficiaries": DictRegistry(beneficiaries, normalize=norm_iban)},
+                context={"payee_sanctioned": is_sanctioned},
+                executors={"payment.transfer": execute})
+    return pack, ledger
+
