@@ -6,11 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "intentplane"
 version = "0.3.0"
 description = "Domain-independent intent control plane for LLM agents (generalisation of AgenticZeroTrust)"
+license = { text = "MIT" }
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = ["cedarpy>=4.0"]   # every pack's policy is a Cedar file
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]
+# AgentDojo benchmark bridge; agentdojo 0.1.x passes `temperature` to messages.stream(), removed in anthropic 1.x
+agentdojo = ["agentdojo>=0.1.35", "anthropic<1"]
 
 [tool.setuptools.packages.find]
 include = ["intentplane*"]

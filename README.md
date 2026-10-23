@@ -163,3 +163,7 @@ See `intentplane/packs/{bank,health,code}.py` (40 to 80 lines each).
   atomic store, separate services and asymmetric signatures. Receipts are tamper-evident, not anchored.
 - **Simulated humans**: approvals are signed with keys standing in for approvers' devices.
 - The text channel (what the agent says back to the user) is not covered.
+
+## License
+
+MIT
