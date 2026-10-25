@@ -26,7 +26,7 @@ import secrets
 import threading
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Protocol
 
@@ -135,6 +135,7 @@ class Param:
     sources: tuple[Source, ...] = (Free(),)
     validate: Callable[[Any], bool] | None = None
     normalize: Callable[[Any], Any] | None = None
+    each: bool = False   # the value is a list, and EVERY item must come from the sources (e.g. email recipients)
 
     def __post_init__(self) -> None:
         if not self.sources:
@@ -477,6 +478,11 @@ class Gateway:
         executor = pack.executors.get(contract.name)
         if executor is None:
             raise _Deny("execution", f"no executor for {contract.name!r}")
+        # write-ahead receipt: nothing executes unless its intent is on record first (if the ledger fails,
+        # this raises and the proposal is DENIED); after a crash, an "EXECUTING" entry with no final receipt
+        # names an operation to reconcile with the system acted upon
+        self.ledger.append(action=contract.name, status="EXECUTING", op_hash=op, intent=intent.canonical(),
+                           approvers=[h for h, _ in approvers])
         result = executor(values, m)   # only the gateway holds the credential to act
         for _, a in approvers:
             self.approvals.consume(a)
@@ -497,6 +503,13 @@ class Gateway:
 
     def _resolve(self, p: Param, raw: Any, m: Mandate, pack: Pack) -> Tagged:
         """Turn a raw agent value into a Tagged value using trusted sources only."""
+        if p.each:
+            if not isinstance(raw, list):
+                raise _Deny("contract", f"{p.name}: expected a list")
+            items = [self._resolve(replace(p, each=False), item, m, pack) for item in raw]
+            origins = {t.origin for t in items}
+            origin = next((o for o in (Origin.UNTRUSTED, Origin.USER_CHANNEL) if o in origins), Origin.SYSTEM_OF_RECORD)
+            return Tagged([t.value for t in items], origin, ",".join(t.ref or "" for t in items) or None)
         norm = p.normalize or (lambda v: v)
         for src in p.sources:
             if isinstance(src, FromMandate):

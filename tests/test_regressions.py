@@ -168,9 +168,81 @@ def test_failed_execution_does_not_consume_budget(w):
 def test_receipts_are_chained_and_record_trusted_provenance(w):
     w.gw.submit(w.bank_token(), pay(ATTACKER))
     w.gw.submit(w.bank_token(), pay({"ref": "42"}))
-    assert w.gw.ledger.verify() and len(w.gw.ledger) == 2
+    # denied: one receipt; executed: a write-ahead "EXECUTING" entry, then the final receipt
+    assert w.gw.ledger.verify() and [e["data"]["status"] for e in w.gw.ledger.entries] == [
+        "DENIED", "EXECUTING", "EXECUTED"]
     last = w.gw.ledger.entries[-1]["data"]["intent"]
     assert last["provenance"]["payee_iban"] == ["system_of_record", "beneficiaries/42"]
     assert last["provenance"]["source_account"] == ["user_channel", "mandate:source_account"]
     w.gw.ledger.entries[0]["data"]["status"] = "EXECUTED"
     assert not w.gw.ledger.verify()
+
+
+# --- list-valued critical parameters (email recipients): every item needs a trusted source ---------
+def test_each_item_of_a_list_needs_a_trusted_source():
+    from intentplane import Authority, FromMandate, FromRegistry
+    from intentplane.core import DictRegistry
+
+    sent = []
+    send = ActionContract("mail.send", "mailbox", (
+        Param("to", str, critical=True, sources=(FromMandate("addresses"), FromRegistry("contacts")),
+              normalize=str.lower, each=True),))
+    contacts = DictRegistry({"alice": {"c1": "bob@corp.com"}, "eve": {"c1": "eve@evil.com"}}, normalize=str.lower)
+    from intentplane.core import Decision
+    allow = RulePDP("t", [lambda i, c: Decision(Effect.ALLOW, "policy", ("ok",))])
+    gw = Gateway([Pack("mail", [send], allow,
+                       registries={"contacts": contacts}, executors={"mail.send": lambda v, m: sent.append(v)})],
+                 auth := Authority())
+    tok = auth.issue("alice", {"mail.send"}, {"addresses": ["carol@corp.com"]})
+    o = gw.submit(tok, Proposal("mail.send", {"to": ["Carol@corp.com", "BOB@corp.com"]}))
+    assert o.status is Status.EXECUTED and sent == [{"to": ["carol@corp.com", "bob@corp.com"]}]
+    for bad in (["bob@corp.com", "eve@evil.com"],      # one smuggled address among good ones
+                ["eve@evil.com"],                      # another owner's contact is not mine
+                "bob@corp.com",                        # not a list
+                [{"ref": "c1"}, ["bob@corp.com"]]):    # a nested list is not an address
+        assert gw.submit(tok, Proposal("mail.send", {"to": bad})).status is Status.DENIED
+    assert len(sent) == 1
+
+
+# --- failures of the trusted side: the gateway must fail closed, and never act without a record --------
+def test_unavailable_registry_or_context_provider_denies(w):
+    class Down:
+        def get(self, principal, ref):
+            raise TimeoutError("vendor master unavailable")
+        find = get
+    pack = w.gw._pack_of["payment.transfer"]
+    saved = pack.registries["beneficiaries"]
+    pack.registries["beneficiaries"] = Down()
+    o = w.gw.submit(w.bank_token(), pay(ACME))
+    assert o.status is Status.DENIED and o.decision.stage == "error" and w.transfers == []
+    pack.registries["beneficiaries"] = saved
+    pack.context["payee_sanctioned"] = lambda action, values, m: (_ for _ in ()).throw(TimeoutError("down"))
+    o = w.gw.submit(w.bank_token(), pay(ACME))
+    assert o.status is Status.DENIED and w.transfers == []
+
+
+def test_no_execution_without_a_write_ahead_receipt(w):
+    def broken_append(**data):
+        raise OSError("receipt store unavailable")
+    w.gw.ledger.append = broken_append
+    try:
+        w.gw.submit(w.bank_token(), pay(ACME))
+    except OSError:
+        pass   # the final receipt cannot be written either; what matters is that nothing executed
+    assert w.transfers == []
+
+
+def test_approval_cannot_be_replayed_on_a_concurrent_resubmission(w):
+    import threading
+    tok = w.bank_token()
+    big = pay(ACME, cents=150_000)
+    o = w.gw.submit(tok, big)
+    assert o.status is Status.PENDING
+    grant = w.approvals.approve("alice", o.op_hash)
+    out = []
+    ts = [threading.Thread(target=lambda: out.append(w.gw.submit(tok, big, (grant,)).status)) for _ in range(6)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    assert out.count(Status.EXECUTED) == 1 and len(w.transfers) == 1

@@ -1,5 +1,20 @@
 # History
 
+## v0.4: extended evaluation
+
+- **Core**: list-valued critical parameters (`Param(..., each=True)`: every email recipient must resolve);
+  a **write-ahead receipt** (`EXECUTING`, with the operation hash) before any execution, so nothing runs
+  without a record. Writing the failure tests showed the receipt used to be written only after execution.
+- **Workspace pack** for AgentDojo (email, calendar, drive): recipients, participants and shares must be in the
+  request or among the user's correspondents; deletions always need the user.
+- **Bridges** execute the resolved values (the trusted records), not the agent's raw ones; replays rerun with
+  this change are identical.
+- **Experiments**: AgentDojo's four built-in defenses as baselines, Claude Haiku 5.5, the workspace suite,
+  gateway-aware adaptive attacks, a noisy approver, ablations and incomplete registries
+  (`run_adaptive.py`, `run_sweep.py`, `run_registry.py`).
+- **Tests**: 49 (failures of the trusted side, concurrent approval replay, workspace pack). Mutation testing
+  covers the workspace policy: its deletion rule was untested until a mutant survived.
+
 ## v0.3: merge with an independent v2, accounts-payable pack
 
 A second, independently written v2 fixed the same v0.1 flaw. v0.3 keeps the best of both:

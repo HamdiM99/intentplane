@@ -6,6 +6,7 @@ call goes through the intentplane gateway with the bank pack (Cedar) and an acco
 
     python -m integrations.agentdojo.run_replay            # print
     python -m integrations.agentdojo.run_replay --write    # also write integrations/agentdojo/results_replay.md
+    python -m integrations.agentdojo.run_replay --suite workspace --write   # -> results_replay_workspace.md
 """
 from __future__ import annotations
 
@@ -75,7 +76,16 @@ def guarded(ut, exp, mandate, human, targets=frozenset()):
     return {"runtime_class": runtime_factory(cfg)}, cfg
 
 
+def helpers(suite_name: str):
+    """(expected_ops, attack_targets, guarded) for an AgentDojo suite bridged to intentplane."""
+    if suite_name == "workspace":
+        from integrations.agentdojo import workspace
+        return workspace.expected_ops, workspace.attack_targets, workspace.guarded
+    return expected_ops, attack_targets, guarded
+
+
 def run_config(suite, mandate, human):
+    expected_ops, attack_targets, guarded = helpers(suite.name)
     utility, util_attacked, attacks_ok, blocked, asked, n_pairs = 0, 0, 0, 0, 0, 0
     per_injection: dict[str, int] = {}
     for ut in suite.user_tasks.values():
@@ -100,10 +110,10 @@ def run_config(suite, mandate, human):
 def report(rows, suite) -> str:
     n_user = len(suite.user_tasks)
     lines = [
-        "# AgentDojo banking through intentplane: fully compromised agent (ground-truth replay)", "",
-        (f"AgentDojo `{VERSION}` banking suite: {n_user} user tasks x {len(suite.injection_tasks)} injection tasks. "
+        f"# AgentDojo {suite.name} through intentplane: fully compromised agent (ground-truth replay)", "",
+        (f"AgentDojo `{VERSION}` {suite.name} suite: {n_user} user tasks x {len(suite.injection_tasks)} injection tasks. "
         "The agent executes the attacker's goal verbatim, then the user's task: a model-independent worst case. "
-        "See `runtime.py` for the trust model, the mandate modes and the simulated human."), "",
+        f"See `{'runtime' if suite.name == 'banking' else suite.name}.py` for the trust model, the mandate modes and the simulated human."), "",
         ("| Configuration | Utility (no attack) | Utility under attack | Attack success rate | Blocked by the gateway "
         "| Human prompts / run |"),
         "|---|---|---|---|---|---|",
@@ -124,9 +134,11 @@ def report(rows, suite) -> str:
 
 
 if __name__ == "__main__":
-    suite = get_suite(VERSION, "banking")
+    name = sys.argv[sys.argv.index("--suite") + 1] if "--suite" in sys.argv else "banking"
+    suite = get_suite(VERSION, name)
     rows = [(label, run_config(suite, m, h)) for label, m, h in CONFIGS]
     text = report(rows, suite)
     print(text)
     if "--write" in sys.argv:
-        Path(__file__).with_name("results_replay.md").write_text(text, encoding="utf-8")
+        out = "results_replay.md" if name == "banking" else f"results_replay_{name}.md"
+        Path(__file__).with_name(out).write_text(text, encoding="utf-8")

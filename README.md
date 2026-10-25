@@ -87,59 +87,75 @@ One core, several domains. A pack is contracts, trusted sources, a Cedar policy 
 | [Bank](intentplane/packs/bank.py) | transfer money | the payee is named in the mandate or is one of the user's beneficiaries; source account and currency are the mandate's; step-up above 1,000.00; sanctions; hard cap |
 | [Accounts payable](intentplane/packs/accounts_payable.py) | change a vendor's IBAN, pay an invoice | IBAN change: call-back on the number already on file, then four eyes. Payment: the invoice exists and is open (paid once, even under concurrency), the payee is the current IBAN of the invoice's vendor, the amount equals the invoice; 7-day cooling-off after an IBAN change; Verification of Payee |
 | [Health](intentplane/packs/health.py) | read a patient record | the patient is in the clinician's open encounters; research needs consent and never reads the full record; break-the-glass needs four eyes |
+| [Workspace](integrations/agentdojo/workspace.py) (AgentDojo) | send email, invite, share, delete | every recipient is in the request or among the user's correspondents; deleting always needs the user |
 | [Code](intentplane/packs/code.py) | merge a commit | the commit was attested by CI for that developer, CI is green, protected branches need a review or four eyes |
 
 Records are scoped to the mandate's owner: one company's vendors, one clinician's encounters.
 
 ## Results
 
-**AgentDojo banking benchmark** (ETH Zurich, v1.2): 16 user tasks x 9 injection tasks = 144 attack
-scenarios, every payment, standing-order change and account change routed through the gateway.
+Measured on the **AgentDojo** benchmark (ETH Zurich, v1.2), banking (16 user tasks x 9 injection tasks) and
+workspace (40 x 14: email, calendar, drive). Every number, its denominator and the raw per-run results:
+[`integrations/agentdojo/`](integrations/agentdojo/).
+
+![Security against utility, gpt-4o-mini](docs/img/tradeoff.png)
+
+*AgentDojo's built-in defenses (circles) trade utility for security without reaching zero; intentplane
+(diamonds) is at zero in banking, and in workspace except for the free-text phishing injection.*
 
 **1. Worst case, replayed without an LLM**: the agent executes the attacker's goal verbatim, then the
-user's task. This is model-independent, and it is where the utility and the human's role are measured.
+user's task. Model-independent; mandate = values in the request + the user's existing counterparties.
 
-| Configuration | Legitimate tasks done | Attacks that succeed |
-|---|---|---|
-| no protection | 16/16 | **143/144 (99%)** |
-| intentplane, no human | 9/16 | **0/144** |
-| intentplane, attentive human | 15/16 | **0/144** |
-| intentplane, human who approves everything | 15/16 | 111/144 (77%) |
+| Configuration | Banking: tasks done | Banking: attacks succeed | Workspace: tasks done | Workspace: attacks succeed* |
+|---|---|---|---|---|
+| no protection | 16/16 | 143/144 | 40/40 | 240/240 |
+| intentplane, no human | 9/16 | **0/144** | 37/40 | **0/240** |
+| intentplane, attentive human | 15/16 | **0/144** | 40/40 | **0/240** |
+| intentplane, human who approves everything | 15/16 | 111/144 | 40/40 | 240/240 |
 
-**2. Real models** (`important_instructions` attack, one run each). Every attacked scenario is attributed
-from the gateway's own decisions: did the model attempt the attacker's action, and what happened to it?
+\* workspace injection tasks 6-13 have no reference solution in AgentDojo v1.2 and cannot be replayed.
 
-| Model | Scenarios where the model attempts the attack (no protection -> intentplane) | Attacks that succeed (no protection -> intentplane) | Legitimate tasks done, no attack (no protection -> intentplane) |
+**2. Real models**, banking (`important_instructions` attack, one run per scenario):
+
+| gpt-4o-mini | Tasks done | Attacks succeed | Scenarios where the model attempts the attack |
 |---|---|---|---|
-| gpt-4o-mini | 92 -> 89 | 69 -> **0** | 9/16 -> 8/16 |
-| GLM-4.6 (open weights) | 5 -> 3 | 5 -> **0** | 15/16 -> 13/16 |
+| no protection | 9/16 | 69/144 | 92 |
+| spotlighting / repeat prompt / tool filter / PI detector (AgentDojo's defenses) | 7-8/16 | 71 / 26 / 23 / 16 | 90 / 39 / 46 / 22 |
+| **intentplane**, no human / attentive human | 5/16 / 8/16 | **0 / 0** | 89 / 89, all blocked |
 
-The gateway does not make a model more obedient: gpt-4o-mini attempts the attack about as often with it
-(89 scenarios) as without it (92). Without protection, 69 of those attempts succeed and 23 fail on their
-own; behind the gateway, all 89 are blocked. After a refusal the model often tries again (44 scenarios with
-several attempts, against 20 without protection), which the gateway blocks just the same.
+GLM-4.6 (open weights): 5 -> **0** attacks. Claude Haiku 5.5 resists every injection on its own (0 attempts in
+704 scenarios); behind the gateway it keeps 13/16 banking and 36/40 workspace tasks. On workspace,
+gpt-4o-mini behind intentplane: **0/520** attacks that need an attacker address or a deletion; the phishing
+link sent to the user's real colleagues (injection 13, free text) still gets through 6-7 times out of 40,
+the boundary of the approach.
 
-What this says: a better model is fooled less often, none is never fooled, and the gateway's guarantee
-does not depend on the model. It does depend on the human who approves: in the worst-case replay, one who
-approves everything lets 77% of the attacks through, although even then the budget stops "send as much as
-possible". Utility figures from the replay (15/16, 9/16) and from the real runs (8/16, 13/16) measure
-different things: the replay executes the benchmark's reference solution, a real model may fail a task by
-itself (gpt-4o-mini completes 9/16 without any protection).
-Tables and raw per-run results (outcome and attribution of every run; runs recorded since the review
-also list every gateway decision per tool call):
-[`integrations/agentdojo/`](integrations/agentdojo/). After a review found that the bridge forwarded an update
-of an unknown scheduled transaction instead of refusing it, the 3 gpt-4o-mini scenarios that went through
-that path were rerun with the fix (previous files kept outside the repo).
+**3. Beyond AgentDojo's attacks** (replay):
+- *gateway-aware attacks* (disguised IBANs and addresses, attacker in cc/bcc, inviting the attacker first to
+  become a "known" contact): **none** executes;
+- *abuse of legitimate values* (pay a real counterparty, inflate a standing order, mail a secret to a real
+  contact): allowed with the "known counterparties" mandate, refused with the strict mandate, except
+  repeating the user's own payment;
+- *a noisy approver*: attack success tracks the approver's error rate; *ablation*: resolution carries two
+  thirds of the protection, approval levels the rest; *incomplete registries*: more confirmations, never
+  an attack.
+
+![The human in the loop](docs/img/humans.png)
+
+The guarantee does not depend on the model. It does depend on the human who approves, and it covers values,
+not free text.
 
 ## Quick start
 
 ```bash
 pip install -e ".[dev,agentdojo]"
-pytest                                       # 43 tests, incl. a 6,000-proposal property fuzz
+pytest                                       # 49 tests, incl. a 6,000-proposal property fuzz
 python demo.py                               # one injection, three domains, one gateway
 python demo_ap.py                            # for a CFO: the "we changed banks" email
 python scripts/mutation_check.py             # weaken each Cedar rule in turn: the suite must fail
-python -m integrations.agentdojo.run_replay  # AgentDojo banking, worst case
+python -m integrations.agentdojo.run_replay [--suite workspace]   # AgentDojo, worst case
+python -m integrations.agentdojo.run_adaptive                     # gateway-aware attacks
+python -m integrations.agentdojo.run_sweep                        # noisy approver, ablations
+python -m integrations.agentdojo.run_registry                     # incomplete registries
 python -m integrations.agentdojo.run_llm --model gpt-4o-mini-2024-07-18   # real model (OPENAI_API_KEY)
 ```
 
@@ -175,6 +191,9 @@ and executors receive the verified mandate. See [`intentplane/packs/`](intentpla
   store, separate services and asymmetric signatures. Receipts are tamper-evident, not anchored.
 - **Simulated humans** in tests and benchmarks; the attentive human is an upper bound on real vigilance.
 - **Off-the-shelf attacks**: AgentDojo's attacks are known and non-adaptive; adaptive attacks are next.
+- **Free text and legitimate values**: a phishing link sent to real correspondents, or a payment to a real
+  counterparty within the policy, are not prevented by resolution (budgets, approval levels and a strict
+  mandate bound the second).
 - Partial payments and credit notes are not modelled; the text the agent says back is not covered.
 
 History of the design and of the reviews: [`docs/HISTORY.md`](docs/HISTORY.md).

@@ -12,10 +12,14 @@ the registry in the bank app and the call is resubmitted. Cedar asks for step-up
 account changes always need the account holder: the simulated human approves the operation hash.
 
 Humans: "none" (nobody approves), "attentive" (approves only what the user actually asked for),
-"rubber-stamp" (approves everything).
+"rubber-stamp" (approves everything), "noisy:p:q" (approves an operation the user did NOT ask for with
+probability p, refuses one the user asked for with probability q; seeded per scenario).
+Ablations (`Config.ablate`): "resolution" (an unknown payee is added without asking anyone), "budget" (no
+mandate budget), "approval" (step-up and four-eyes are granted automatically).
 """
 from __future__ import annotations
 
+import random
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -86,8 +90,32 @@ class Config:
     human: str = "none"
     expected_ops: set[tuple] = field(default_factory=set)
     attack_targets: set[str] = field(default_factory=set)
+    seed: int = 0
+    ablate: frozenset = frozenset()
+    registry_drop: float = 0.0   # fraction of the known counterparties missing from the registry (incomplete records)
     stats: dict = field(default_factory=lambda: {"executed": 0, "denied": 0, "asked_human": 0, "human_yes": 0,
                                                  "attack_attempts": 0, "attack_blocked": 0, "decisions": []})
+
+
+def human_decides(cfg: Config, expected: bool) -> bool:
+    """The simulated human's answer to a confirmation, for an operation that is (or is not) one the user
+    actually asked for."""
+    if cfg.human in ("none", "rubber-stamp"):
+        return cfg.human == "rubber-stamp"
+    if cfg.human == "attentive":
+        return expected
+    _, p, q = cfg.human.split(":")
+    rng = cfg.__dict__.setdefault("_rng", random.Random(
+        f"{cfg.seed}|{cfg.prompt}|{sorted(map(str, cfg.attack_targets))}"))
+    return rng.random() >= float(q) if expected else rng.random() < float(p)
+
+
+def drop_records(cfg: Config, records: list) -> list:
+    """An incomplete system of record: each entry is missing with probability cfg.registry_drop (seeded)."""
+    if not cfg.registry_drop:
+        return records
+    rng = random.Random(f"drop|{cfg.seed}|{cfg.prompt}")
+    return [r for r in records if rng.random() >= cfg.registry_drop]
 
 
 class IntentplaneRuntime(FunctionsRuntime):
@@ -103,27 +131,27 @@ class IntentplaneRuntime(FunctionsRuntime):
         known = {safe_iban(t.recipient) for t in acc.transactions + acc.scheduled_transactions}
         known |= {safe_iban(t.sender) for t in acc.transactions}
         known = sorted(i for i in known if _IBAN_RE.match(i) and i != safe_iban(acc.iban))
+        known = drop_records(self.cfg, known)
         named = sorted({safe_iban(i) for i in _IBAN_IN_TEXT.findall(self.cfg.prompt)})
         registry = {PRINCIPAL: {f"known-{n}": iban for n, iban in enumerate(known)}} \
             if self.cfg.mandate == "prompt+known" else {}
         bank_pack, _ = bank.build(registry)
-        bank_pack.executors["payment.transfer"] = lambda values, mandate: self._pending()
+        bank_pack.executors["payment.transfer"] = lambda values, mandate: self._pending(values)
         account_pack = Pack("account", [PASSWORD, USER_INFO],
                             ACCOUNT_PDP,
-                            executors={c.name: (lambda values, mandate: self._pending()) for c in (PASSWORD, USER_INFO)})
+                            executors={c.name: (lambda values, mandate: self._pending(None)) for c in (PASSWORD, USER_INFO)})
         auth = Authority()
         approvals = Approvals({PRINCIPAL: b"emma-device-key"})
         gw = Gateway([bank_pack, account_pack], auth, approvals)
         token = auth.issue(PRINCIPAL, {"payment.transfer", PASSWORD.name, USER_INFO.name},
-                           {"source_account": acc.iban, "currency": "EUR", "payee": named}, budget=BUDGET_CENTS)
+                           {"source_account": acc.iban, "currency": "EUR", "payee": named},
+                           budget=None if "budget" in self.cfg.ablate else BUDGET_CENTS)
         self._w = {"gw": gw, "token": token, "approvals": approvals,
                    "beneficiaries": bank_pack.registries["beneficiaries"], "added": 0, "source": acc.iban}
 
     def _human_approves(self, function: str, args: Mapping) -> bool:
         self.cfg.stats["asked_human"] += 1
-        ok = {"none": False, "rubber-stamp": True}.get(self.cfg.human)
-        if ok is None:
-            ok = matches_expected(op_key(function, args), self.cfg.expected_ops)
+        ok = human_decides(self.cfg, matches_expected(op_key(function, args), self.cfg.expected_ops))
         self.cfg.stats["human_yes"] += ok
         return ok
 
@@ -182,21 +210,28 @@ class IntentplaneRuntime(FunctionsRuntime):
 
         box: dict = {}
 
-        def pending():
-            box["result"] = super(IntentplaneRuntime, self).run_function(env, function, kwargs, raise_on_error)
+        def pending(values):
+            # the tool receives the RESOLVED payee (the trusted record) and amount, not the agent's raw values
+            call = dict(kwargs)
+            if values is not None:
+                call["recipient"] = values["payee_iban"]
+                if function != "update_scheduled_transaction" or args.get("amount") is not None:
+                    call["amount"] = values["amount_cents"] / 100
+            box["result"] = super(IntentplaneRuntime, self).run_function(env, function, call, raise_on_error)
             return "ok"
 
         self._pending = pending
         o = w["gw"].submit(w["token"], proposal)
         if (o.status is Status.DENIED and o.decision.stage == "provenance"
                 and all(r.startswith("payee_iban") for r in o.decision.reasons) and isinstance(payee, str)):
-            if not self._human_approves(function, human_view):   # new payee: the human may add it in the app
+            if "resolution" not in self.cfg.ablate and not self._human_approves(function, human_view):
+                # new payee: the human may add it in the app
                 return self._deny("payee is not in the mandate and the account holder did not add it", function)
             w["added"] += 1
             w["beneficiaries"].add(PRINCIPAL, f"added-{w['added']}", payee)
             o = w["gw"].submit(w["token"], proposal)
         if o.status is Status.PENDING:
-            if not self._human_approves(function, human_view):
+            if "approval" not in self.cfg.ablate and not self._human_approves(function, human_view):
                 return self._deny(f"{o.decision.effect.value}: not approved by the account holder", function)
             o = w["gw"].submit(w["token"], proposal, (w["approvals"].approve(PRINCIPAL, o.op_hash),))
         if o.status is not Status.EXECUTED:

@@ -4,3 +4,7 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 .venv/
+
+# the paper is published at a conference, not in this repository
+paper/
+intentplane.zip
