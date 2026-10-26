@@ -21,3 +21,5 @@ mcp-publisher.exe
 mcp-publisher.tar.gz
 .mcpregistry_*
 examples/mcp/proxy.log
+# screen recordings
+*.mp4
