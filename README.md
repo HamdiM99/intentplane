@@ -172,8 +172,8 @@ MCP client  ──►  intentplane-mcp  ──►  your MCP servers (bank, ERP, 
 ```
 
 ```bash
-pip install -e ".[mcp]"
-intentplane-mcp --config examples/mcp/intentplane.toml
+uvx intentplane-mcp --config examples/mcp/intentplane.toml
+# or: pip install intentplane-mcp && intentplane-mcp --config examples/mcp/intentplane.toml
 ```
 
 A tool is declared once in the TOML config: which arguments are critical and where their legitimate values
@@ -203,12 +203,12 @@ the user to confirm the exact operation; above 10,000.00, or beyond the session 
 To use it from a client, register the proxy as an MCP server, for example:
 
 ```bash
-claude mcp add intentplane -- intentplane-mcp --config /path/to/intentplane.toml
+claude mcp add intentplane -- uvx intentplane-mcp --config /path/to/intentplane.toml
 ```
 
 ```json
-{ "mcpServers": { "intentplane": { "command": "intentplane-mcp",
-                                   "args": ["--config", "/path/to/intentplane.toml"] } } }
+{ "mcpServers": { "intentplane": { "command": "uvx",
+                                   "args": ["intentplane-mcp", "--config", "/path/to/intentplane.toml"] } } }
 ```
 
 A step-up needs a client that supports MCP elicitation; with one that does not, the operation is refused.

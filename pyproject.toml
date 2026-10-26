@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane"
-version = "0.5.0"
+version = "0.5.1"
 description = "Intent control plane for LLM agents: the agent proposes, a deterministic gateway resolves every critical argument against trusted sources and decides (Cedar). Includes an MCP proxy."
 license = "MIT"
 license-files = ["LICENSE"]
@@ -28,7 +28,7 @@ dependencies = ["cedarpy>=4.0"]   # every pack's policy is a Cedar file
 dev = ["pytest>=8", "ruff>=0.5"]
 # AgentDojo benchmark bridge; agentdojo 0.1.x passes `temperature` to messages.stream(), removed in anthropic 1.x
 agentdojo = ["agentdojo>=0.1.35", "anthropic<1"]
-# MCP proxy: intentplane-mcp --config intentplane.toml
+# MCP proxy (the `intentplane-mcp` command is the separate package packaging/intentplane-mcp)
 mcp = ["mcp>=2.3,<3", "tomli>=2; python_version < '3.11'"]
 
 [project.urls]
@@ -37,8 +37,6 @@ Source = "https://github.com/HamdiM99/intentplane"
 Issues = "https://github.com/HamdiM99/intentplane/issues"
 Changelog = "https://github.com/HamdiM99/intentplane/blob/main/docs/HISTORY.md"
 
-[project.scripts]
-intentplane-mcp = "intentplane.proxy.server:main"
 
 [tool.setuptools.packages.find]
 include = ["intentplane*"]

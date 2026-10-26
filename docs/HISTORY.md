@@ -1,5 +1,11 @@
 # History
 
+## v0.5.1: `intentplane-mcp` as its own package
+
+The proxy command is now the separate PyPI package `intentplane-mcp` (it depends on `intentplane[mcp]`), so MCP
+clients and the MCP Registry can run it with `uvx intentplane-mcp --config ...`. `server.json` describes it for
+the official MCP Registry.
+
 ## v0.5: MCP proxy
 
 - **`intentplane-mcp`**: the gateway as an MCP proxy between any MCP client and its MCP servers, configured in
