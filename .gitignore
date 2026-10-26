@@ -20,3 +20,4 @@ build/
 mcp-publisher.exe
 mcp-publisher.tar.gz
 .mcpregistry_*
+examples/mcp/proxy.log
