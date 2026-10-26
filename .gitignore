@@ -11,3 +11,6 @@ intentplane.zip
 # MCP demo outputs
 examples/mcp/executed.log
 examples/mcp/receipts.jsonl
+packaging/intentplane-mcp/dist/
+packaging/intentplane-mcp/build/
+packaging/intentplane-mcp/*.egg-info/

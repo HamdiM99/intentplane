@@ -1,0 +1,34 @@
+# The `intentplane-mcp` command as its own package, so that MCP clients can run it with `uvx intentplane-mcp`.
+# It contains no code: the proxy lives in intentplane (intentplane.proxy), installed with its `mcp` extra.
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intentplane-mcp"
+version = "0.5.1"
+description = "MCP proxy that puts the intentplane gateway in front of any MCP server: critical tool arguments are resolved against trusted sources and decided by a Cedar policy."
+license = "MIT"
+license-files = ["LICENSE"]
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Mustapha Hamdi" }]
+keywords = ["mcp", "model-context-protocol", "llm", "agents", "prompt-injection", "authorization", "cedar"]
+dependencies = ["intentplane[mcp]==0.5.1"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+
+[project.urls]
+Homepage = "https://github.com/HamdiM99/intentplane"
+Source = "https://github.com/HamdiM99/intentplane"
+Issues = "https://github.com/HamdiM99/intentplane/issues"
+
+[project.scripts]
+intentplane-mcp = "intentplane.proxy.server:main"
+
+[tool.setuptools]
+packages = []

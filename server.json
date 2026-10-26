@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.HamdiM99/intentplane",
+  "title": "intentplane",
+  "description": "Gateway in front of MCP tools: critical arguments are checked against trusted sources and a policy.",
+  "repository": {
+    "url": "https://github.com/HamdiM99/intentplane",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/HamdiM99/intentplane",
+  "version": "0.5.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "intentplane-mcp",
+      "version": "0.5.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "named",
+          "name": "--config",
+          "description": "Path to the intentplane TOML configuration (downstream servers, tools, trusted sources, Cedar policy)",
+          "isRequired": true,
+          "format": "filepath"
+        }
+      ]
+    }
+  ]
+}
