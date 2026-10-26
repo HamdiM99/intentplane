@@ -16,3 +16,7 @@ packaging/intentplane-mcp/build/
 packaging/intentplane-mcp/*.egg-info/
 dist/
 build/
+# MCP Registry publisher (downloaded locally) and its login token
+mcp-publisher.exe
+mcp-publisher.tar.gz
+.mcpregistry_*
