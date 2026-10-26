@@ -1,5 +1,11 @@
 # History
 
+## v0.5.3: a clear answer when the client cannot confirm
+
+A step-up on a client without MCP elicitation is refused with that reason (checked from the client's declared
+capabilities), not as "the user did not confirm". Tool descriptions explain the guard in plain words. Found while
+testing the demo in Claude Desktop, which does not support elicitation yet.
+
 ## v0.5.2: the user confirms the resolved operation
 
 A step-up confirmation shows the resolved values and their origin (trusted record, amount in its units), not the

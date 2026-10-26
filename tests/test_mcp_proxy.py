@@ -132,3 +132,31 @@ def test_end_to_end_over_mcp(tmp_path):
     anyio.run(run)
     executed = (work / "executed.log").read_text(encoding="utf-8").splitlines()
     assert executed == [f"TRANSFER 1240.00 EUR -> {ACME} ()"]
+
+
+@pytest.mark.parametrize("client", ["declines", "cannot ask"])
+def test_a_step_up_without_confirmation_executes_nothing_and_says_why(tmp_path, client):
+    import anyio
+    from mcp import ClientSession, StdioServerParameters, types
+    from mcp.client.stdio import stdio_client
+
+    work = tmp_path / "mcp"
+    shutil.copytree(EXAMPLE, work, ignore=shutil.ignore_patterns("*.log", "*.jsonl"))
+
+    async def decline(context, params):
+        return types.ElicitResult(action="decline")
+
+    async def run():
+        server = StdioServerParameters(command=sys.executable, cwd=str(work),
+                                       args=["-m", "intentplane.proxy.server", "--config", "intentplane.toml"])
+        callback = {"elicitation_callback": decline} if client == "declines" else {}   # no callback: no elicitation
+        async with stdio_client(server) as (read, write), ClientSession(read, write, **callback) as session:
+            await session.initialize()
+            return await session.call_tool("send_money", {"recipient": ACME, "amount": 1240.0})
+
+    res = anyio.run(run)
+    text = res.content[0].text
+    assert res.is_error
+    assert ("cannot ask for it" in text) == (client == "cannot ask")
+    assert ("did not confirm" in text) == (client == "declines")
+    assert not (work / "executed.log").exists()

@@ -37,15 +37,25 @@ def _refusal(message: str) -> types.CallToolResult:
                                 is_error=True)
 
 
-async def _confirm(ctx, key: str, shown: dict) -> bool:
-    """Ask the user, in the client, to confirm the exact RESOLVED operation. Any failure is a no."""
+NOT_CONFIRMED = "the user did not confirm the operation; nothing was executed"
+CANNOT_CONFIRM = ("this operation needs the user's confirmation, but this MCP client cannot ask for it (it does "
+                  "not support MCP elicitation); nothing was executed. The user can confirm it from a client that "
+                  "supports elicitation.")
+
+
+async def _confirm(ctx, key: str, shown: dict) -> str:
+    """Ask the user, in the client, to confirm the exact RESOLVED operation: 'confirmed', 'declined', or
+    'unavailable' when the client cannot ask (no elicitation). Anything but 'confirmed' executes nothing."""
+    caps = getattr(ctx.session, "client_capabilities", None)
+    if caps is not None and getattr(caps, "elicitation", None) is None:
+        return "unavailable"   # the client said at connection time that it cannot ask the user
     text = f"intentplane: confirm {key} with\n{json.dumps(shown, indent=1, ensure_ascii=False, default=str)}"
     try:
         res = await ctx.session.elicit_form(text, CONFIRM_SCHEMA, related_request_id=ctx.request_id)
-    except Exception as e:  # noqa: BLE001  (client without elicitation, timeout, ...): fail closed
+    except Exception as e:  # noqa: BLE001  (method not found, timeout, ...): fail closed
         log.warning("confirmation unavailable: %s", e)
-        return False
-    return res.action == "accept" and bool((res.content or {}).get("confirm"))
+        return "unavailable"
+    return "confirmed" if res.action == "accept" and bool((res.content or {}).get("confirm")) else "declined"
 
 
 async def serve(cfg: ProxyConfig) -> None:
@@ -89,16 +99,17 @@ async def serve(cfg: ProxyConfig) -> None:
 
             r: GateResult = await asyncio.to_thread(gate.decide, key, args, call)
             if r.status == "pending" and r.effect == "step_up":
-                if await _confirm(ctx, key, r.resolved or args):
+                answer = await _confirm(ctx, key, r.resolved or args)
+                if answer == "confirmed":
                     grant = gate.approve(r.op_hash)
                     r = await asyncio.to_thread(gate.decide, key, args, call, (grant,))
                 else:
-                    r = GateResult("denied", "the user did not confirm the operation")
+                    r = GateResult("denied", CANNOT_CONFIRM if answer == "unavailable" else NOT_CONFIRMED)
             if r.status == "executed":
                 return r.result
             return _refusal(r.message)
 
-        server = Server("intentplane", version="0.5.2",
+        server = Server("intentplane", version="0.5.3",
                         instructions="Tools are guarded by intentplane: refused calls return an explanation.",
                         on_list_tools=on_list_tools, on_call_tool=on_call_tool)
         async with stdio_server() as (read, write):
