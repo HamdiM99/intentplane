@@ -8,7 +8,7 @@ sits between the agent and the systems it acts on. It does not try to detect pro
 assumes the agent is compromised, and makes sure that what executes is only what the user mandated,
 built from values the agent does not control.
 
-![intentplane architecture](docs/img/architecture.png)
+![intentplane architecture](https://raw.githubusercontent.com/HamdiM99/intentplane/main/docs/img/architecture.png)
 
 > Research prototype, fictional data only. Not production software, no compliance claim.
 > Generalisation of [AgenticZeroTrust](https://github.com/HamdiM99/AgenticZeroTrust).
@@ -98,7 +98,7 @@ Measured on the **AgentDojo** benchmark (ETH Zurich, v1.2), banking (16 user tas
 workspace (40 x 14: email, calendar, drive). Every number, its denominator and the raw per-run results:
 [`integrations/agentdojo/`](integrations/agentdojo/).
 
-![Security against utility, gpt-4o-mini](docs/img/tradeoff.png)
+![Security against utility, gpt-4o-mini](https://raw.githubusercontent.com/HamdiM99/intentplane/main/docs/img/tradeoff.png)
 
 *AgentDojo's built-in defenses (circles) trade utility for security without reaching zero; intentplane
 (diamonds) is at zero in banking, and in workspace except for the free-text phishing injection.*
@@ -139,7 +139,7 @@ the boundary of the approach.
   thirds of the protection, approval levels the rest; *incomplete registries*: more confirmations, never
   an attack.
 
-![The human in the loop](docs/img/humans.png)
+![The human in the loop](https://raw.githubusercontent.com/HamdiM99/intentplane/main/docs/img/humans.png)
 
 The guarantee does not depend on the model. It does depend on the human who approves, and it covers values,
 not free text.
