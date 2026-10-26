@@ -1,5 +1,10 @@
 # History
 
+## v0.5.2: the user confirms the resolved operation
+
+A step-up confirmation shows the resolved values and their origin (trusted record, amount in its units), not the
+agent's arguments. Narrated demo client in `examples/mcp/demo_client.py`.
+
 ## v0.5.1: `intentplane-mcp` as its own package
 
 The proxy command is now the separate PyPI package `intentplane-mcp` (it depends on `intentplane[mcp]`), so MCP

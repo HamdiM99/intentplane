@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane"
-version = "0.5.1"
+version = "0.5.2"
 description = "Intent control plane for LLM agents: the agent proposes, a deterministic gateway resolves every critical argument against trusted sources and decides (Cedar). Includes an MCP proxy."
 license = "MIT"
 license-files = ["LICENSE"]
