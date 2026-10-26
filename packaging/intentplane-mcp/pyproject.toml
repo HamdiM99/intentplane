@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane-mcp"
-version = "0.5.2"
+version = "0.5.3"
 description = "MCP proxy that puts the intentplane gateway in front of any MCP server: critical tool arguments are resolved against trusted sources and decided by a Cedar policy."
 license = "MIT"
 license-files = ["LICENSE"]
@@ -14,7 +14,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Mustapha Hamdi" }]
 keywords = ["mcp", "model-context-protocol", "llm", "agents", "prompt-injection", "authorization", "cedar"]
-dependencies = ["intentplane[mcp]==0.5.2"]
+dependencies = ["intentplane[mcp]==0.5.3"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

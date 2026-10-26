@@ -8,12 +8,12 @@
     "source": "github"
   },
   "websiteUrl": "https://github.com/HamdiM99/intentplane",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "intentplane-mcp",
-      "version": "0.5.2",
+      "version": "0.5.3",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
