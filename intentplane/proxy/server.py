@@ -34,9 +34,9 @@ def _refusal(message: str) -> types.CallToolResult:
                                 is_error=True)
 
 
-async def _confirm(ctx, key: str, args: dict) -> bool:
-    """Ask the user, in the client, to confirm the exact operation. Any failure is a no."""
-    text = f"intentplane: confirm {key} with\n{json.dumps(args, indent=1, ensure_ascii=False, default=str)}"
+async def _confirm(ctx, key: str, shown: dict) -> bool:
+    """Ask the user, in the client, to confirm the exact RESOLVED operation. Any failure is a no."""
+    text = f"intentplane: confirm {key} with\n{json.dumps(shown, indent=1, ensure_ascii=False, default=str)}"
     try:
         res = await ctx.session.elicit_form(text, CONFIRM_SCHEMA, related_request_id=ctx.request_id)
     except Exception as e:  # noqa: BLE001  (client without elicitation, timeout, ...): fail closed
@@ -85,7 +85,7 @@ async def serve(cfg: ProxyConfig) -> None:
 
             r: GateResult = await asyncio.to_thread(gate.decide, key, args, call)
             if r.status == "pending" and r.effect == "step_up":
-                if await _confirm(ctx, key, args):
+                if await _confirm(ctx, key, r.resolved or args):
                     grant = gate.approve(r.op_hash)
                     r = await asyncio.to_thread(gate.decide, key, args, call, (grant,))
                 else:

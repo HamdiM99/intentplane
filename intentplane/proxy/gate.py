@@ -65,6 +65,7 @@ class GateResult:
     result: Any = None
     op_hash: str | None = None
     effect: str | None = None
+    resolved: dict | None = None   # for a pending operation: what the human approves (resolved values, origin)
 
 
 def _normalizer(name: str | None):
@@ -142,12 +143,28 @@ class ToolGate:
         with self._lock:
             self._call, self._args, self._current_action = call, dict(args), spec.action
             o: Outcome = self.gateway.submit(self.token, self._proposal(spec, args), approvals)
+            receipt = self.gateway.ledger.entries[-1]["data"] if self.gateway.ledger.entries else {}
         if o.status is Status.EXECUTED:
             return GateResult("executed", "; ".join(o.decision.reasons), o.result, o.op_hash)
         if o.status is Status.PENDING:
             who = "you" if o.decision.effect is Effect.STEP_UP else "a second person (four eyes)"
-            return GateResult("pending", f"needs confirmation by {who}", None, o.op_hash, o.decision.effect.value)
+            return GateResult("pending", f"needs confirmation by {who}", None, o.op_hash, o.decision.effect.value,
+                              self._shown(spec, receipt.get("intent") or {}))
         return GateResult("denied", f"[{o.decision.stage}] " + "; ".join(o.decision.reasons))
+
+    @staticmethod
+    def _shown(spec: ToolSpec, intent: Mapping[str, Any]) -> dict:
+        """The operation as the human must see it: the RESOLVED values (trusted records, amounts back in their
+        units) and where each critical one comes from, never the agent's own wording."""
+        params, origin = intent.get("params", {}), intent.get("provenance", {})
+        shown = {}
+        for p in spec.params:
+            value = params.get(p.name)
+            if p.type == "number" and isinstance(value, int) and p.scale != 1:
+                value = value / p.scale
+            ref = (origin.get(p.name) or [None, None])[1]
+            shown[p.name] = f"{value}  (from {ref})" if p.critical and ref else value
+        return shown
 
     def approve(self, op_hash: str) -> Mapping:
         """The user's own approval (step-up), signed over the exact operation hash."""

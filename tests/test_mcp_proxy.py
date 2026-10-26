@@ -49,6 +49,12 @@ def test_large_transfer_needs_the_users_confirmation_once(gate):
     assert len(gate.calls) == 1
 
 
+def test_the_user_confirms_the_resolved_operation_not_the_agents_wording(gate):
+    r = pay(gate, "fr76 3000 6000 0112 3456 7890 189", 1240.0)
+    assert r.status == "pending"
+    assert r.resolved == {"recipient": f"{ACME}  (from beneficiaries/acme)", "amount": 1240.0}
+
+
 def test_hard_cap_and_session_budget(gate):
     assert pay(gate, ACME, 20000.0).status == "denied"            # forbid above 10,000.00, whatever the approval
     for _ in range(2):
@@ -101,7 +107,7 @@ def test_end_to_end_over_mcp(tmp_path):
     from mcp.client.stdio import stdio_client
 
     work = tmp_path / "mcp"
-    shutil.copytree(EXAMPLE, work)
+    shutil.copytree(EXAMPLE, work, ignore=shutil.ignore_patterns("*.log", "*.jsonl"))   # no leftovers of a demo run
     asked = []
 
     async def confirm(context, params):   # the user's answer to the client's confirmation dialog
