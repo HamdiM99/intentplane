@@ -95,12 +95,13 @@ def p1_cover(pdf):
     para(ax, 95, 730, "intentplane checks every critical argument an agent proposes against a source the agent "
          "does not control: the payee must be the vendor's IBAN in the ERP, the amount the validated invoice's, "
          "the account the one in the user's signed mandate. One domain-independent core, a Cedar policy per "
-         "domain pack (bank, accounts payable, health, code), records scoped to each company.", 17.5, INK2,
-         lh=30, right=W - 95)
+         "domain pack (bank, accounts payable, health, code, email and files), records scoped to each company.",
+         17.5, INK2, lh=30, right=W - 95)
 
-    tile(ax, 70, 300, 300, 215, "0 / 144", "AgentDojo attacks succeed through intentplane, two real models")
+    tile(ax, 70, 300, 300, 215, "0 / 144", "AgentDojo banking attacks succeed through intentplane, three real models")
     tile(ax, 390, 300, 300, 215, "89 / 89", "gpt-4o-mini attempts to follow the attacker, all blocked")
-    tile(ax, 710, 300, 300, 215, "4 packs", "on one core: bank, accounts payable, health, code")
+    tile(ax, 710, 300, 300, 215, "16 to 71", "of 144 attacks still succeed with AgentDojo's 4 built-in defenses",
+         ORANGE_D)
     t(ax, 70, 230, "Mustapha Hamdi, PhD", 21, INK, "bold")
     t(ax, 70, 192, f"{REPO}  ·  open source (MIT)  ·  research prototype, fictional data", 15.5, INK2)
     pdf.savefig(fig)
@@ -337,7 +338,8 @@ def p9_real_models(pdf):
          "Each bar: the scenarios, out of 144, in which the model tried to carry out the attacker's action.",
          18, INK2, lh=31)
     rows = [("gpt-4o-mini, no protection", 69, 23, 0), ("gpt-4o-mini, intentplane", 0, 0, 89),
-            ("GLM-4.6 (open weights), no protection", 5, 0, 0), ("GLM-4.6, intentplane", 0, 0, 3)]
+            ("GLM-4.6 (open weights), no protection", 5, 0, 0), ("GLM-4.6, intentplane", 0, 0, 3),
+            ("Claude Haiku 5.5, with or without intentplane", 0, 0, 0)]
     cax = fig.add_axes([0.07, 0.345, 0.86, 0.38], facecolor=SURF)
     n = len(rows)
     for i, (label, ok, failed, blocked) in enumerate(rows):
@@ -359,8 +361,71 @@ def p9_real_models(pdf):
         t(ax, x + 34, 437, lbl, 15.5, INK)
     para(ax, 70, 380, "The gateway does not make the model more obedient: gpt-4o-mini tries about as often with "
          "it (89 scenarios) as without (92). After a refusal it often tries again (44 scenarios with several "
-         "attempts, against 20): none gets through. Legitimate tasks without attack: gpt-4o-mini 9 -> 8 of 16, "
-         "GLM-4.6 15 -> 13 of 16 (one run each).", 16.5, INK2, lh=28)
+         "attempts, against 20): none gets through. Claude Haiku 5.5 resisted every injection on its own; for "
+         "it the gateway is insurance. Legitimate tasks without attack: gpt-4o-mini 9 -> 8 of 16, GLM-4.6 "
+         "15 -> 13, Claude Haiku 5.5 15 -> 13 (one run each).", 16.5, INK2, lh=28)
+    pdf.savefig(fig)
+    return fig
+
+
+def p9b_baselines(pdf):
+    fig, ax = new_page("Results 3: against existing defenses", "Existing defenses reduce attacks. None stops them.")
+    para(ax, 70, 1100, "Same model (gpt-4o-mini), same 144 banking scenarios, with each of the four defenses that "
+         "ship with AgentDojo, then behind intentplane. Bars: attacks that succeed.", 18, INK2, lh=31)
+    rows = [("No defense", 69, 9), ("Spotlighting (delimit tool outputs)", 71, 8),
+            ("Repeat the user's prompt", 26, 7), ("Tool filter (remove unneeded tools)", 23, 7),
+            ("Prompt-injection detector (DeBERTa)", 16, 7), ("intentplane, attentive human", 0, 8)]
+    cax = fig.add_axes([0.07, 0.33, 0.86, 0.42], facecolor=SURF)
+    n = len(rows)
+    for i, (label, ok, util) in enumerate(rows):
+        yc = n - 1 - i
+        ours = label.startswith("intentplane")
+        cax.barh(yc, max(ok, 0.6), 0.48, color=BLUE if ours else ORANGE, edgecolor=SURF, lw=2)
+        cax.text(max(ok, 0) + 1.5, yc, f"{ok} / 144", va="center", fontsize=15, family=SANS, color=INK,
+                 fontweight="bold")
+        cax.text(0, yc + 0.3, f"{label}   ·   {util}/16 legitimate tasks", fontsize=15.5, family=SANS,
+                 color=INK, va="bottom", fontweight="bold" if ours else "normal")
+    cax.set_xlim(0, 100)
+    cax.set_ylim(-0.5, n - 0.15)
+    cax.axis("off")
+    para(ax, 70, 400, "The defenses that work on the model's input lower the odds; they cannot rule out an obeyed "
+         "injection. intentplane does not try to stop the model from obeying: it refuses the action when a "
+         "value does not come from a trusted source. The tool filter does well on the email suite (9 of 560) "
+         "because the agent rarely has the tool to attack with; it gives no guarantee when the task needs "
+         "the tool, as here.", 16.5, INK2, lh=28)
+    pdf.savefig(fig)
+    return fig
+
+
+def p9c_beyond(pdf):
+    fig, ax = new_page("Results 4: another domain, and attacks aimed at the gateway",
+                       "Email, calendar, files. And an attacker who knows the rules.")
+    box(ax, 70, 760, W - 140, 330, "white", LINE, 1.2, 16)
+    t(ax, 95, 1060, "AGENTDOJO WORKSPACE: 40 TASKS x 14 INJECTIONS", 14.5, BLUE_D, "bold")
+    y = para(ax, 95, 1028, "Every recipient, invitee or share must be in the request or among the user's "
+             "correspondents; deleting a file always needs the user.", 17, INK2, lh=29, right=W - 95)
+    tiles = [("0 / 520", ("gpt-4o-mini attacks that need an attacker address or a deletion, behind "
+                          "intentplane (86 without)")),
+             ("6-7 / 40", ("phishing links sent to the user's real colleagues still succeed: the gateway "
+                           "checks recipients, not text"))]
+    for k, (big, small) in enumerate(tiles):
+        x = 95 + k * 460
+        t(ax, x, y - 40, big, 34, BLUE_D if k == 0 else ORANGE_D, "bold")
+        para(ax, x, y - 80, small, 15.5, INK2, lh=25, right=x + 420)
+
+    box(ax, 70, 300, W - 140, 430, BLUE_T, BLUE, 1.2, 16)
+    t(ax, 95, 700, "ATTACKS WRITTEN AGAINST THE GATEWAY (REPLAY, EVERY TASK CONTEXT)", 14.5, BLUE_D, "bold")
+    items = [("Disguised values", ("IBAN or address with spaces, case, zero-width or Cyrillic characters, "
+                                   "attacker in cc/bcc: never executes.")),
+             ("Becoming a \"known\" contact", "invite the attacker, share a file, then send: never executes."),
+             ("Abuse of legitimate values", ("pay a real counterparty, inflate a standing order, mail a secret to "
+                                             "a real contact: refused with a strict mandate, except repeating "
+                                             "the user's own payment.")),
+             ("A noisy approver", "attack success tracks the approver's error rate, in both domains.")]
+    y = 665
+    for head, body in items:
+        t(ax, 95, y, head, 17.5, INK, "bold", va="top")
+        y = para(ax, 95, y - 30, body, 16, INK2, lh=26, right=W - 95) - 14
     pdf.savefig(fig)
     return fig
 
@@ -368,14 +433,16 @@ def p9_real_models(pdf):
 def p10_limits(pdf):
     fig, ax = new_page("What it costs, what is not solved", "Honest limits.", ORANGE_D)
     items = [("The human who signs.", ("A human who approves everything lets 77% of worst-case attacks "
-              "through. Approval fatigue is the open problem.")),
+              "through; with a noisy approver, attacks track its error rate.")),
+             ("Free text.", ("The gateway checks values, not prose: a phishing link sent to real colleagues "
+              "still gets through.")),
+             ("Legitimate values.", ("Paying a real counterparty within the policy is not prevented; a strict "
+              "mandate and budgets bound it.")),
              ("Utility without a human.", ("Payments to payees the user never named are refused: 9 of 16 "
-              "tasks complete in the worst-case replay.")),
-             ("Derived values.", ("An amount computed from an untrusted document is bounded (budget, policy, "
-              "ERP invoice), not traced.")),
+              "banking tasks complete in the worst-case replay.")),
              ("Trusted sources are trusted.", "A poisoned registry or a compromised gateway are out of scope."),
-             ("Prototype.", "In-memory state, one process, simulated approvers, fictional data."),
-             ("Known attacks only, so far.", "AgentDojo's attacks are not adaptive. Adaptive attacks are next.")]
+             ("Prototype.", ("In-memory state, simulated approvers, fictional data; real models run once each, "
+              "gateway-aware attacks replayed without a model."))]
     y = 1095
     for head, body in items:
         t(ax, 70, y, head, 23, INK, "bold", va="top")
@@ -386,14 +453,14 @@ def p10_limits(pdf):
 
 def p11_tests(pdf):
     fig, ax = new_page("How it is tested", "Every claim is a test that can fail.")
-    tile(ax, 70, 810, 455, 280, "43 tests", "regression tests for every attack found in reviews, incl. "
-         "concurrency and cross-company cases")
+    tile(ax, 70, 810, 455, 280, "49 tests", "regression tests for every attack found in reviews, incl. "
+         "concurrency, cross-company and failure cases")
     tile(ax, 555, 810, 455, 280, "6,000", "random proposals over what an attacker controls, checked by an "
          "oracle independent of the gateway code")
-    tile(ax, 70, 505, 455, 280, "31 / 31", "policy mutants killed: each forbid, approval guard and permit "
+    tile(ax, 70, 505, 455, 280, "32 / 32", "policy mutants killed: each forbid, approval guard and permit "
          "condition weakened in turn (6 equivalent, documented)")
-    tile(ax, 555, 505, 455, 280, "640 runs", "raw AgentDojo results in the repo: outcome and attribution of "
-         "every run, two models, with and without the gateway")
+    tile(ax, 555, 505, 455, 280, "7,029 runs", "raw AgentDojo results in the repo: outcome and attribution of "
+         "every run, three models, two suites, four baselines")
     para(ax, 70, 450, "Continuous integration runs lint, tests, mutation testing, both demos and the AgentDojo "
          "replay on Python 3.10 to 3.12. The design was reviewed and attacked several times; each finding "
          "became a regression test.", 17.5, INK2, lh=30)
@@ -405,7 +472,7 @@ def p12_close(pdf):
     fig, ax = new_page("Try it", "The code, the tests and the scenarios are open.")
     box(ax, 70, 760, W - 140, 330, "#16181d", "#0d0f12", 1, 16)
     for i, line in enumerate(["git clone https://" + REPO, "pip install -e \".[dev,agentdojo]\"",
-                              "pytest", "python demo_ap.py", "python -m integrations.agentdojo.run_replay"]):
+                              "pytest", "python demo_ap.py", "python -m integrations.agentdojo.run_adaptive"]):
         t(ax, 100, 1040 - i * 56, "$ " + line, 18, "#d8dbe0", family=MONO)
     y = para(ax, 70, 700, "I would like to hear from teams deploying agents in finance, accounts payable or "
              "banking, ERP integrators, and anyone who wants to break it.", 20, INK, "bold", lh=34)
@@ -420,7 +487,7 @@ def main() -> None:
     png_dir = Path(sys.argv[sys.argv.index("--png") + 1]) if "--png" in sys.argv else None
     OUT.parent.mkdir(parents=True, exist_ok=True)
     builders = [p1_cover, p5_architecture, p3_scenario, p4_idea, p6_pipeline, p7_ap, p8_worst_case,
-                p9_real_models, p11_tests, p10_limits, p12_close]
+                p9_real_models, p9b_baselines, p9c_beyond, p11_tests, p10_limits, p12_close]
     global PAGES
     PAGES = len(builders)
     with PdfPages(OUT) as pdf:
