@@ -25,6 +25,9 @@ from .config import ProxyConfig, load_config
 from .gate import GateResult, ToolGate
 
 log = logging.getLogger("intentplane.mcp")
+GATED_NOTE = ("Protected by intentplane: the critical arguments must match trusted data (the user's mandate or "
+              "records), otherwise the call is refused with the reason; some operations ask the user to confirm first.")
+PASSTHROUGH_NOTE = "Read-only: intentplane passes this call through without a decision."
 CONFIRM_SCHEMA = {"type": "object", "properties": {"confirm": {"type": "boolean", "title": "Confirm this operation"}},
                   "required": ["confirm"]}
 
@@ -65,8 +68,9 @@ async def serve(cfg: ProxyConfig) -> None:
                     continue   # not configured: not even shown to the agent
                 name = t.name if t.name not in exposed else f"{s.name}__{t.name}"
                 exposed[name] = (s.name, t.name)
-                note = "guarded by intentplane" if kind == "gated" else "read-only, passed through by intentplane"
-                tools.append(t.model_copy(update={"name": name, "description": f"{t.description or ''} [{note}]".strip()}))
+                note = GATED_NOTE if kind == "gated" else PASSTHROUGH_NOTE
+                description = f"{t.description or ''}\n\n{note}".strip()
+                tools.append(t.model_copy(update={"name": name, "description": description}))
         log.info("exposing %d tools from %d servers", len(tools), len(sessions))
 
         async def on_list_tools(ctx, params) -> types.ListToolsResult:
