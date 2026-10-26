@@ -1,5 +1,14 @@
 # History
 
+## v0.5: MCP proxy
+
+- **`intentplane-mcp`**: the gateway as an MCP proxy between any MCP client and its MCP servers, configured in
+  TOML (critical arguments, their trusted sources, the parameters the Cedar policy needs). Unlisted tools are
+  hidden and refused, read-only ones can pass through, a step-up is confirmed by the user through MCP
+  elicitation, receipts are appended to a JSON-lines file. Demo in `examples/mcp/`.
+- **Fix**: `Gateway(..., ledger=...)` silently replaced an empty ledger by a new one (an empty `Ledger` is falsy
+  through `__len__`), so a ledger passed in was never written. Found by the proxy's receipt test.
+
 ## v0.4: extended evaluation
 
 - **Core**: list-valued critical parameters (`Param(..., each=True)`: every email recipient must resolve);

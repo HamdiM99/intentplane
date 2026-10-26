@@ -406,7 +406,7 @@ class Gateway:
                 self._pack_of[c.name] = p
         self.authority = authority
         self.approvals = approvals or Approvals({})
-        self.ledger = ledger or Ledger()
+        self.ledger = ledger if ledger is not None else Ledger()   # an EMPTY ledger is falsy (__len__)
         self._spent: dict[str, float] = {}
         self._calls: dict[str, int] = {}
         self._lock = threading.Lock()

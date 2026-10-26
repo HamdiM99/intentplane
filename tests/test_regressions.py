@@ -246,3 +246,12 @@ def test_approval_cannot_be_replayed_on_a_concurrent_resubmission(w):
     for t in ts:
         t.join()
     assert out.count(Status.EXECUTED) == 1 and len(w.transfers) == 1
+
+
+def test_a_ledger_passed_to_the_gateway_is_the_one_used_even_when_empty(w):
+    from intentplane.core import Ledger
+
+    mine = Ledger()   # empty, hence falsy through __len__: `ledger or Ledger()` used to replace it
+    gw = Gateway([w.gw._pack_of["payment.transfer"]], w.auth, w.approvals, mine)
+    gw.submit(w.bank_token(), pay(ACME))
+    assert gw.ledger is mine and len(mine) == 2

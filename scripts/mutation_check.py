@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-FILES = sorted([*ROOT.glob("intentplane/packs/*.cedar"), *ROOT.glob("integrations/*/*.cedar")])
+FILES = sorted([*ROOT.glob("intentplane/packs/*.cedar"), *ROOT.glob("integrations/*/*.cedar"),
+                *ROOT.glob("examples/*/*.cedar")])
 PYTEST = [sys.executable, "-m", "pytest", "-q", "-x", "-p", "no:cacheprovider", "-rs"]
 
 # Equivalent mutants: they broaden a permit only where another permit already allows the same case at the same
@@ -35,6 +36,8 @@ EQUIVALENT = {
     "code.cedar: permit-merge-protected-branch-four-eyes "
     "(drop '[\"main\", \"release\"].contains(context.params.target_branch)')":
         "unprotected branches are already permitted at level 0 by permit-merge-unprotected-branch",
+    "policy.cedar: permit-large-transfer-with-step-up (drop 'context.params.amount > 100000')":
+        "amounts <= 1,000.00 are already permitted at level 0 by permit-small-transfer (MCP demo policy)",
     "health.cedar: permit-full-record-with-step-up (drop 'context.params.section == \"full\"')":
         "treatment reads of other sections are already permitted at level 0 by permit-treatment-read",
 }

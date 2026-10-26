@@ -1,0 +1,51 @@
+# intentplane MCP proxy: the demo configuration (see intentplane/proxy/config.py for every field).
+#   intentplane-mcp --config examples/mcp/intentplane.toml
+
+[mandate]                     # issued by the trusted side for this session
+principal = "emma"
+budget = 250000               # cents: 2,500.00 EUR in total for the session
+[mandate.claims]
+addresses = ["emma@example.com"]
+
+[registries.beneficiaries]    # the payees Emma enrolled in her bank's own app
+file = "beneficiaries.json"
+normalize = "iban"
+
+[registries.contacts]         # Emma's address book
+file = "contacts.json"
+normalize = "email"
+
+[[servers]]
+name = "demo"
+command = "python"
+args = ["demo_server.py"]
+
+[[tools]]
+server = "demo"
+tool = "send_money"
+action = "payment.transfer"
+budget_param = "amount"
+[tools.params.recipient]
+critical = true
+sources = ["registry:beneficiaries"]
+normalize = "iban"
+[tools.params.amount]
+type = "number"
+scale = 100                   # the policy and the budget see cents
+
+[[tools]]
+server = "demo"
+tool = "send_email"
+action = "mail.send"
+[tools.params.to]
+critical = true
+each = true
+sources = ["mandate:addresses", "registry:contacts"]
+normalize = "email"
+
+[policy]
+file = "policy.cedar"
+
+[defaults]
+passthrough = ["demo.get_balance", "demo.read_inbox"]
+receipts = "receipts.jsonl"

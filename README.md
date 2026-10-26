@@ -147,8 +147,8 @@ not free text.
 ## Quick start
 
 ```bash
-pip install -e ".[dev,agentdojo]"
-pytest                                       # 49 tests, incl. a 6,000-proposal property fuzz
+pip install -e ".[dev,agentdojo,mcp]"
+pytest                                       # 59 tests, incl. a 6,000-proposal property fuzz and the MCP proxy end to end
 python demo.py                               # one injection, three domains, one gateway
 python demo_ap.py                            # for a CFO: the "we changed banks" email
 python scripts/mutation_check.py             # weaken each Cedar rule in turn: the suite must fail
@@ -158,6 +158,62 @@ python -m integrations.agentdojo.run_sweep                        # noisy approv
 python -m integrations.agentdojo.run_registry                     # incomplete registries
 python -m integrations.agentdojo.run_llm --model gpt-4o-mini-2024-07-18   # real model (OPENAI_API_KEY)
 ```
+
+## Use it with any MCP client
+
+`intentplane-mcp` puts the gateway between an MCP client (Claude Desktop, Claude Code, Cursor, ...) and the
+MCP servers it uses, without changing either. The client sees the downstream tools; every call to a
+configured tool is decided by intentplane first.
+
+```
+MCP client  ──►  intentplane-mcp  ──►  your MCP servers (bank, ERP, mail, ...)
+                 resolve critical arguments, Cedar policy,
+                 ask the user to confirm (MCP elicitation), receipts
+```
+
+```bash
+pip install -e ".[mcp]"
+intentplane-mcp --config examples/mcp/intentplane.toml
+```
+
+A tool is declared once in the TOML config: which arguments are critical and where their legitimate values
+live, which ones the policy needs. Unlisted tools are not even shown to the agent; read-only ones can be
+passed through.
+
+```toml
+[[tools]]
+server = "demo"
+tool = "send_money"
+action = "payment.transfer"
+budget_param = "amount"
+[tools.params.recipient]
+critical = true
+sources = ["registry:beneficiaries"]   # or "mandate:<claim>"
+normalize = "iban"
+[tools.params.amount]
+type = "number"
+scale = 100                            # the Cedar policy and the budget see cents
+```
+
+What the demo shows ([`examples/mcp/`](examples/mcp/)): the inbox holds a "we changed banks" email. A payment
+to the IBAN in the email is refused with an explanation the agent can read; a payment to the vendor's IBAN on
+file executes, with the trusted record even if the agent spelled it differently; above 1,000.00 the client asks
+the user to confirm the exact operation; above 10,000.00, or beyond the session budget, nothing executes.
+
+To use it from a client, register the proxy as an MCP server, for example:
+
+```bash
+claude mcp add intentplane -- intentplane-mcp --config /path/to/intentplane.toml
+```
+
+```json
+{ "mcpServers": { "intentplane": { "command": "intentplane-mcp",
+                                   "args": ["--config", "/path/to/intentplane.toml"] } } }
+```
+
+A step-up needs a client that supports MCP elicitation; with one that does not, the operation is refused.
+Four-eyes cannot be granted from the same client and is refused. The mandate is issued when the proxy starts
+(one session, one user); registries are JSON files in this version.
 
 ## How it is tested
 
