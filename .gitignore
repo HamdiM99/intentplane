@@ -8,3 +8,6 @@ __pycache__/
 # the paper is published at a conference, not in this repository
 paper/
 intentplane.zip
+# MCP demo outputs
+examples/mcp/executed.log
+examples/mcp/receipts.jsonl
