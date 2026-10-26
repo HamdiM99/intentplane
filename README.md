@@ -195,6 +195,10 @@ type = "number"
 scale = 100                            # the Cedar policy and the budget see cents
 ```
 
+![intentplane-mcp demo: the IBAN from the email is refused, the vendor's IBAN on file is paid, a large payment is confirmed on the resolved operation](https://raw.githubusercontent.com/HamdiM99/intentplane/main/docs/img/demo.gif)
+
+*`python examples/mcp/demo_client.py`: a scripted agent that obeys the email, behind intentplane-mcp.*
+
 What the demo shows ([`examples/mcp/`](examples/mcp/)): the inbox holds a "we changed banks" email. A payment
 to the IBAN in the email is refused with an explanation the agent can read; a payment to the vendor's IBAN on
 file executes, with the trusted record even if the agent spelled it differently; above 1,000.00 the client asks
