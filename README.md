@@ -215,6 +215,8 @@ claude mcp add intentplane -- uvx intentplane-mcp --config /path/to/intentplane.
                                    "args": ["intentplane-mcp", "--config", "/path/to/intentplane.toml"] } } }
 ```
 
+An agent skill, [`skills/intentplane/SKILL.md`](skills/intentplane/SKILL.md), teaches agents to work with the gateway (read a refusal, never work around it, report what executed) and to help users write a configuration. For Claude Code, copy it to `.claude/skills/intentplane/`.
+
 A step-up needs a client that supports MCP elicitation; with one that does not, the operation is refused.
 Four-eyes cannot be granted from the same client and is refused. The mandate is issued when the proxy starts
 (one session, one user); registries are JSON files in this version.
