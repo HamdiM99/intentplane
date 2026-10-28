@@ -40,4 +40,4 @@ claude mcp add intentplane -- uvx intentplane-mcp --config /path/to/intentplane.
 A complete demo (a bank-and-mail server whose inbox holds a "we changed banks" email), the configuration
 reference and the evaluation are in the repository: https://github.com/HamdiM99/intentplane
 
-Research prototype, MIT licence.
+Research prototype, Apache License 2.0.

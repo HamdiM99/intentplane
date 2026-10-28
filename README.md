@@ -262,4 +262,5 @@ History of the design and of the reviews: [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## License
 
-MIT
+Apache License 2.0 (see `LICENSE` and `NOTICE`). Versions up to and including 0.5.3 were
+released under the MIT License.

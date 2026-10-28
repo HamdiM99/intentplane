@@ -103,7 +103,7 @@ def p1_cover(pdf):
     tile(ax, 710, 300, 300, 215, "16 to 71", "of 144 attacks still succeed with AgentDojo's 4 built-in defenses",
          ORANGE_D)
     t(ax, 70, 230, "Mustapha Hamdi, PhD", 21, INK, "bold")
-    t(ax, 70, 192, f"{REPO}  ·  open source (MIT)  ·  research prototype, fictional data", 15.5, INK2)
+    t(ax, 70, 192, f"{REPO}  ·  open source (Apache 2.0)  ·  research prototype, fictional data", 15.5, INK2)
     pdf.savefig(fig)
     return fig
 
@@ -478,7 +478,7 @@ def p12_close(pdf):
              "banking, ERP integrators, and anyone who wants to break it.", 20, INK, "bold", lh=34)
     t(ax, 70, y - 50, "Mustapha Hamdi, PhD", 22, INK, "bold")
     t(ax, 70, y - 92, REPO, 19, BLUE_D)
-    t(ax, 70, y - 130, "MIT licence. Research prototype, fictional data, no compliance claim.", 16, INK2)
+    t(ax, 70, y - 130, "Apache 2.0 licence. Research prototype, fictional data, no compliance claim.", 16, INK2)
     pdf.savefig(fig)
     return fig
 

@@ -1,5 +1,10 @@
 # History
 
+## v0.6.0: Apache License 2.0
+
+Relicensed from MIT to the Apache License 2.0 (patent grant, no trademark rights, NOTICE file). Versions
+up to and including 0.5.3 remain under MIT. No code changes.
+
 ## v0.5.3: a clear answer when the client cannot confirm
 
 A step-up on a client without MCP elicitation is refused with that reason (checked from the client's declared

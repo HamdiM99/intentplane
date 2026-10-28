@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane"
-version = "0.5.3"
+version = "0.6.0"
 description = "Intent control plane for LLM agents: the agent proposes, a deterministic gateway resolves every critical argument against trusted sources and decides (Cedar). Includes an MCP proxy."
-license = "MIT"
-license-files = ["LICENSE"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Mustapha Hamdi" }]
