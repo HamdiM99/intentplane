@@ -23,3 +23,7 @@ mcp-publisher.tar.gz
 examples/mcp/proxy.log
 # screen recordings
 *.mp4
+# local Odoo demo secrets and logs
+examples/odoo/credentials.json
+examples/odoo/callbacks.json
+examples/odoo/receipts.jsonl

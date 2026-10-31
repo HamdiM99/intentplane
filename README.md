@@ -221,6 +221,25 @@ A step-up needs a client that supports MCP elicitation; with one that does not, 
 Four-eyes cannot be granted from the same client and is refused. The mandate is issued when the proxy starts
 (one session, one user); registries are JSON files in this version.
 
+## On a real ERP: Odoo
+
+The accounts-payable pack reads its systems of record through an `ERPSource` interface. `OdooERP`
+([`intentplane/connectors/odoo.py`](intentplane/connectors/odoo.py)) implements it over Odoo's external API: vendors,
+their current bank account and its age, open vendor bills, and payments registered in Odoo on the account the
+gateway resolved. A local Odoo 17 with demo data runs in Docker:
+
+```bash
+docker compose -f examples/odoo/docker-compose.yml up -d
+python examples/odoo/setup_odoo.py     # database, vendor ACME Supplies, bills INV-2290 and INV-2291, users
+python examples/odoo/demo_odoo.py
+```
+
+The demo shows both sides: the bill redirected to the IBAN of a "we changed banks" email is refused, and so is
+changing the vendor's bank details without a call-back; the two legitimate bills are paid in Odoo without
+friction; a second payment of the same bill is refused. The gateway uses three Odoo identities, none held by the
+agent, and the demo checks that neither the one it reads with nor the one it pays with can modify or add a vendor
+bank account. Who may change the registries, and how: [`docs/registry-authority.md`](docs/registry-authority.md).
+
 ## How it is tested
 
 - **The property** (`tests/test_property.py`): 6,000 proposals over what an attacker controls (any action,

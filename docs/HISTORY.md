@@ -1,5 +1,14 @@
 # History
 
+## Unreleased: a real ERP
+
+- The accounts-payable pack reads its systems of record through an `ERPSource` interface; the in-memory `ERP` is
+  one implementation, `intentplane.connectors.odoo.OdooERP` another (Odoo's external API, three separate
+  identities: read-only, payer, bank administrator).
+- `examples/odoo/`: Odoo 17 in Docker, setup and an end-to-end demo with both outcomes (legitimate bills paid,
+  redirected bill refused) and a check that the reading and paying identities cannot change bank accounts.
+- `docs/registry-authority.md`: who may change the registries the gateway trusts.
+
 ## v0.6.0: Apache License 2.0
 
 Relicensed from MIT to the Apache License 2.0 (patent grant, no trademark rights, NOTICE file). Versions

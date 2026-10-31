@@ -22,6 +22,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
+from typing import Protocol
 
 from intentplane.cedar_pdp import CedarPDP
 from intentplane.core import ActionContract, FromMandate, FromRegistry, Pack, Param
@@ -53,8 +54,42 @@ PAY = ActionContract(
 )
 
 
+class ERPSource(Protocol):
+    """The ERP as the gateway sees it: read access to the systems of record, for one tenant at a time, plus the two
+    writes the gateway makes AFTER a decision (the agent never holds these credentials). Every lookup is keyed by
+    the mandate's tenant and by an id or a value the gateway resolves; nothing is taken on the agent's word.
+
+    Implementations: `ERP` (in memory, for tests and demos) and `intentplane.connectors.odoo.OdooERP`."""
+
+    def vendor(self, tenant: str, vendor_id: str) -> Mapping | None:
+        """{name, iban, iban_changed_at (epoch seconds), phone}, or None if not a vendor of that tenant."""
+
+    def vendor_for_iban(self, tenant: str, iban: str) -> str | None:
+        """The vendor of that tenant whose CURRENT bank account is `iban` (normalised), or None."""
+
+    def invoice(self, tenant: str, ref: str) -> Mapping | None:
+        """{vendor_id, amount_cents, currency, status ('open' or anything else)}, or None."""
+
+    def callback_phone(self, tenant: str, vendor_id: str, iban: str) -> str | None:
+        """The phone number on which finance confirmed that `iban` belongs to the vendor, if it did."""
+
+    def vop_match(self, tenant: str, vendor_name: str, iban: str) -> bool:
+        """Verification of Payee: does the account holder of `iban` match the vendor's name?"""
+
+    def is_sanctioned(self, iban: str) -> bool: ...
+
+    def now(self) -> float: ...
+
+    def record_payment(self, tenant: str, values: Mapping) -> str:
+        """Executor of invoice.pay: pay the invoice and mark it paid (called by the gateway, under its lock)."""
+
+    def set_vendor_iban(self, tenant: str, vendor_id: str, iban: str) -> str:
+        """Executor of vendor.update_bank_details (called by the gateway, after call-back and four eyes)."""
+
+
 class ERP:
-    """Fictional ERP: tenant -> vendors, invoices, call-back log, plus a VoP service and a sanctions list."""
+    """Fictional ERP, in memory: tenant -> vendors, invoices, call-back log, plus a VoP service and a sanctions list.
+    An `ERPSource`."""
 
     def __init__(self, tenants: Mapping[str, Mapping[str, dict]], vop: Mapping[tuple[str, str], bool] | None = None,
                  sanctioned: Iterable[str] = (), now: Callable[[], float] = time.time) -> None:
@@ -73,51 +108,92 @@ class ERP:
         normalised here, so a connector cannot store a spelling the gateway would not recognise."""
         self.t[tenant]["callbacks"][(vendor_id, norm_iban(new_iban))] = phone
 
+    # -- ERPSource ------------------------------------------------------------------------------------------
+    def vendor(self, tenant, vendor_id):
+        return self.of(tenant)["vendors"].get(vendor_id)
 
-class _Ids:
-    """Registry view: ref == value, valid if the record exists for that tenant."""
+    def vendor_for_iban(self, tenant, iban):
+        try:
+            n = norm_iban(iban)
+        except ValueError:
+            return None
+        return next((vid for vid, v in self.of(tenant)["vendors"].items() if norm_iban(v["iban"]) == n), None)
 
-    def __init__(self, erp: ERP, table: str) -> None:
-        self.erp, self.table = erp, table
+    def invoice(self, tenant, ref):
+        return self.of(tenant)["invoices"].get(ref)
+
+    def callback_phone(self, tenant, vendor_id, iban):
+        return self.of(tenant)["callbacks"].get((vendor_id, norm_iban(iban)))
+
+    def vop_match(self, tenant, vendor_name, iban):
+        return self.vop.get((vendor_name, norm_iban(iban)), False)
+
+    def is_sanctioned(self, iban):
+        return norm_iban(iban) in self.sanctioned
+
+    def record_payment(self, tenant, values):
+        self.of(tenant)["invoices"][values["invoice_ref"]]["status"] = "paid"
+        self.payments.append({**values, "tenant": tenant})
+        return f"paid {values['amount_cents'] / 100:.2f} {values['currency']} for {values['invoice_ref']}"
+
+    def set_vendor_iban(self, tenant, vendor_id, iban):
+        vendor = self.of(tenant)["vendors"][vendor_id]
+        vendor["iban"], vendor["iban_changed_at"] = norm_iban(iban), self.now()
+        return f"vendor {vendor_id}: IBAN updated"
+
+
+class _Vendors:
+    """Registry view: a vendor id of the tenant (ref == value)."""
+
+    def __init__(self, erp: ERPSource) -> None:
+        self.erp = erp
 
     def get(self, owner, ref):
-        return ref if ref in self.erp.of(owner)[self.table] else None
+        return ref if isinstance(ref, str) and self.erp.vendor(owner, ref) else None
 
     def find(self, owner, value):
-        return value if isinstance(value, str) and value in self.erp.of(owner)[self.table] else None
+        return self.get(owner, value)
+
+
+class _Invoices:
+    """Registry view: an invoice ref of the tenant (ref == value)."""
+
+    def __init__(self, erp: ERPSource) -> None:
+        self.erp = erp
+
+    def get(self, owner, ref):
+        return ref if isinstance(ref, str) and self.erp.invoice(owner, ref) else None
+
+    def find(self, owner, value):
+        return self.get(owner, value)
 
 
 class _CurrentIbans:
     """Registry view: the CURRENT IBAN of each vendor of the tenant (ref = vendor id)."""
 
-    def __init__(self, erp: ERP) -> None:
+    def __init__(self, erp: ERPSource) -> None:
         self.erp = erp
 
     def get(self, owner, ref):
-        v = self.erp.of(owner)["vendors"].get(ref)
+        v = self.erp.vendor(owner, ref)
         return v["iban"] if v else None
 
     def find(self, owner, value):
-        try:
-            n = norm_iban(value)
-        except ValueError:
-            return None
-        return next((vid for vid, v in self.erp.of(owner)["vendors"].items() if norm_iban(v["iban"]) == n), None)
+        return self.erp.vendor_for_iban(owner, value)
 
 
-def build(erp: ERP) -> Pack:
-    def invoice(values, m) -> dict:
-        return erp.of(m.owner)["invoices"][values["invoice_ref"]]
+def build(erp: ERPSource) -> Pack:
+    def invoice(values, m) -> Mapping:
+        return erp.invoice(m.owner, values["invoice_ref"])
 
-    def invoice_vendor(values, m) -> dict:
-        return erp.of(m.owner)["vendors"][invoice(values, m)["vendor_id"]]
+    def invoice_vendor(values, m) -> Mapping:
+        return erp.vendor(m.owner, invoice(values, m)["vendor_id"])
 
     def callback_verified(a, v, m) -> bool:
         if a != UPDATE_BANK.name:
             return False
-        t = erp.of(m.owner)
-        phone = t["callbacks"].get((v["vendor_id"], norm_iban(v["new_iban"])))
-        return phone is not None and phone == t["vendors"][v["vendor_id"]]["phone"]
+        phone = erp.callback_phone(m.owner, v["vendor_id"], v["new_iban"])
+        return phone is not None and phone == erp.vendor(m.owner, v["vendor_id"])["phone"]
 
     def pay_fact(fn):
         return lambda a, v, m: fn(v, m) if a == PAY.name else False
@@ -129,24 +205,18 @@ def build(erp: ERP) -> Pack:
                                             == norm_iban(v["payee_iban"])),
         "amount_matches_invoice": pay_fact(lambda v, m: invoice(v, m)["amount_cents"] == v["amount_cents"]
                                            and invoice(v, m)["currency"] == v["currency"]),
-        "vop_match": pay_fact(lambda v, m: erp.vop.get((invoice_vendor(v, m)["name"], norm_iban(v["payee_iban"])),
-                                                       False)),
-        "payee_sanctioned": pay_fact(lambda v, m: norm_iban(v["payee_iban"]) in erp.sanctioned),
+        "vop_match": pay_fact(lambda v, m: erp.vop_match(m.owner, invoice_vendor(v, m)["name"], v["payee_iban"])),
+        "payee_sanctioned": pay_fact(lambda v, m: erp.is_sanctioned(v["payee_iban"])),
         "iban_age_days": lambda a, v, m: (int((erp.now() - invoice_vendor(v, m)["iban_changed_at"]) // DAY)
                                           if a == PAY.name else 0),
     }
 
     def update_bank(values, m) -> str:   # writes only in the mandate's own tenant
-        vendor = erp.of(m.owner)["vendors"][values["vendor_id"]]
-        vendor["iban"], vendor["iban_changed_at"] = norm_iban(values["new_iban"]), erp.now()
-        return f"vendor {values['vendor_id']}: IBAN updated"
+        return erp.set_vendor_iban(m.owner, values["vendor_id"], values["new_iban"])
 
     def pay(values, m) -> str:
-        erp.of(m.owner)["invoices"][values["invoice_ref"]]["status"] = "paid"
-        erp.payments.append({**values, "tenant": m.owner})
-        return f"paid {values['amount_cents'] / 100:.2f} {values['currency']} for {values['invoice_ref']}"
+        return erp.record_payment(m.owner, values)
 
     return Pack("accounts_payable", [UPDATE_BANK, PAY], CedarPDP.from_file("ap-policy-1", POLICY_FILE),
-                registries={"vendors": _Ids(erp, "vendors"), "invoices": _Ids(erp, "invoices"),
-                            "vendor_ibans": _CurrentIbans(erp)},
+                registries={"vendors": _Vendors(erp), "invoices": _Invoices(erp), "vendor_ibans": _CurrentIbans(erp)},
                 context=context, executors={UPDATE_BANK.name: update_bank, PAY.name: pay})
