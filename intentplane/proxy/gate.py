@@ -87,6 +87,16 @@ def _contract_param(p: ParamSpec) -> Param:
                  each=p.each)
 
 
+def schema_problems(spec: ToolSpec, input_schema: Mapping[str, Any] | None) -> list[str]:
+    """Declared parameters the downstream tool does not have. A typo here would let the tool's real argument
+    travel unchecked in `_rest`, so the proxy does not expose a tool with any such problem (fail closed)."""
+    properties = (input_schema or {}).get("properties")
+    if not isinstance(properties, Mapping):
+        return [f"{spec.key}: the tool publishes no input schema, its arguments cannot be checked"]
+    return [f"{spec.key}: declared parameter {p.name!r} is not an argument of the tool "
+            f"(it has {sorted(properties)})" for p in spec.params if p.name not in properties]
+
+
 class ToolGate:
     def __init__(self, cfg: ProxyConfig) -> None:
         self.cfg = cfg

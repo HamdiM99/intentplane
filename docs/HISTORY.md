@@ -1,5 +1,13 @@
 # History
 
+## Unreleased
+
+- The proxy does not expose a gated tool whose declared parameters are not arguments of the real tool (a typo
+  would let the real argument through unchecked); the problem is logged.
+- `examples/mcp/intentplane-desktop.toml` and `CLAUDE_DESKTOP.md`: trying the local approval page in Claude
+  Desktop.
+- Agent skill: relay the approval link and retry with the same arguments.
+
 ## v0.7.0: a real ERP, and confirming outside the client
 
 - The accounts-payable pack reads its systems of record through an `ERPSource` interface; the in-memory `ERP` is

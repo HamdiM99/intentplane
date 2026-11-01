@@ -161,3 +161,32 @@ def test_a_step_up_without_confirmation_executes_nothing_and_says_why(tmp_path, 
     assert ("cannot ask for it" in text) == (client == "cannot ask")
     assert ("did not confirm" in text) == (client == "declines")
     assert not (work / "executed.log").exists()
+
+
+def test_a_misdeclared_tool_is_not_exposed(tmp_path):
+    """A typo in a declared parameter would let the tool's real argument through unchecked: the proxy hides
+    such a tool instead (here `recipient` declared as `payee`)."""
+    import anyio
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    from intentplane.proxy.gate import schema_problems
+    cfg = load_config(EXAMPLE / "intentplane.toml")
+    spec = cfg.tools["demo.send_money"]
+    assert schema_problems(spec, {"properties": {"recipient": {}, "amount": {}, "subject": {}}}) == []
+    assert schema_problems(spec, {"properties": {"to": {}, "amount": {}}}) and schema_problems(spec, None)
+
+    work = tmp_path / "mcp"
+    shutil.copytree(EXAMPLE, work, ignore=shutil.ignore_patterns("*.log", "*.jsonl"))
+    toml = work / "intentplane.toml"
+    toml.write_text(toml.read_text(encoding="utf-8").replace("[tools.params.recipient]", "[tools.params.payee]"),
+                    encoding="utf-8")
+
+    async def run():
+        server = StdioServerParameters(command=sys.executable, cwd=str(work),
+                                       args=["-m", "intentplane.proxy.server", "--config", "intentplane.toml"])
+        async with stdio_client(server) as (read, write), ClientSession(read, write) as session:
+            await session.initialize()
+            return {t.name for t in (await session.list_tools()).tools}
+
+    assert anyio.run(run) == {"get_balance", "read_inbox", "send_email"}
