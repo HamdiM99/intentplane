@@ -9,7 +9,7 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
 WORKDIR /app
-RUN pip install "intentplane-mcp==0.6.0"
+RUN pip install "intentplane-mcp==0.7.0"
 COPY examples/mcp /app/demo
 
 ENTRYPOINT ["intentplane-mcp"]

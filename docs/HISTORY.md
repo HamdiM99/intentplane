@@ -1,6 +1,6 @@
 # History
 
-## Unreleased: a real ERP, and an approval app
+## v0.7.0: a real ERP, and confirming outside the client
 
 - The accounts-payable pack reads its systems of record through an `ERPSource` interface; the in-memory `ERP` is
   one implementation, `intentplane.connectors.odoo.OdooERP` another (Odoo's external API, three separate
