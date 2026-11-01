@@ -31,6 +31,7 @@ from intentplane.core import (
     Param,
     Proposal,
     Status,
+    operation_hash,
 )
 from intentplane.packs.bank import norm_iban
 
@@ -66,6 +67,7 @@ class GateResult:
     op_hash: str | None = None
     effect: str | None = None
     resolved: dict | None = None   # for a pending operation: what the human approves (resolved values, origin)
+    intent: dict | None = None     # ... and the canonical intent the approval signs (operation_hash(intent) == op_hash)
 
 
 def _normalizer(name: str | None):
@@ -99,7 +101,7 @@ class ToolGate:
         pack = Pack("mcp", contracts, CedarPDP("mcp-policy", cfg.policy), registries=registries,
                     executors={c.name: self._execute for c in contracts})
         self.authority = Authority()
-        self.approvals = Approvals({cfg.principal: secrets.token_bytes(32)})
+        self.approvals = Approvals({cfg.principal: secrets.token_bytes(32)})   # approval channels enroll others
         self.gateway = Gateway([pack], self.authority, self.approvals,
                                FileLedger(cfg.receipts) if cfg.receipts else Ledger())
         self.token = self.authority.issue(cfg.principal, {c.name for c in contracts}, cfg.claims,
@@ -147,9 +149,12 @@ class ToolGate:
         if o.status is Status.EXECUTED:
             return GateResult("executed", "; ".join(o.decision.reasons), o.result, o.op_hash)
         if o.status is Status.PENDING:
+            intent = receipt.get("intent") or {}
+            if operation_hash(intent) != o.op_hash:   # never show a human anything but the operation to approve
+                return GateResult("denied", "internal error: the pending operation could not be shown; refused")
             who = "you" if o.decision.effect is Effect.STEP_UP else "a second person (four eyes)"
             return GateResult("pending", f"needs confirmation by {who}", None, o.op_hash, o.decision.effect.value,
-                              self._shown(spec, receipt.get("intent") or {}))
+                              self._shown(spec, intent), intent)
         return GateResult("denied", f"[{o.decision.stage}] " + "; ".join(o.decision.reasons))
 
     @staticmethod
@@ -164,6 +169,9 @@ class ToolGate:
                 value = value / p.scale
             ref = (origin.get(p.name) or [None, None])[1]
             shown[p.name] = f"{value}  (from {ref})" if p.critical and ref else value
+        rest = json.loads(params.get(REST) or "{}")
+        if rest:   # covered by the approval too: shown, so nothing executes that the human did not see
+            shown["other arguments"] = rest
         return shown
 
     def approve(self, op_hash: str) -> Mapping:

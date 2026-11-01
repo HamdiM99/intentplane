@@ -33,6 +33,14 @@
     [defaults]
     passthrough = ["bank.get_balance"]   # read-only tools that need no decision; anything else unlisted is DENIED
     receipts = "receipts.jsonl"
+
+    [approvals]                    # optional: confirm a step-up in a local web page (clients without elicitation)
+    passcode = "scrypt$..."        # the user's passcode hash: python -m intentplane.approvals hash-passcode
+    listen = "127.0.0.1:8765"
+    wait = 0                       # seconds a tool call waits for the decision; 0: answer at once, the agent retries
+    ttl = 300                      # an unanswered request, and its approval, expire after this many seconds
+    receipts = "approvals.jsonl"
+    # channel = "package.module:create"   # another approval channel (more approvers, four eyes): create(cfg, gate)
 """
 from __future__ import annotations
 
@@ -82,6 +90,20 @@ class ServerSpec:
     env: dict[str, str] | None = None
 
 
+@dataclass(frozen=True)
+class ApprovalsSpec:
+    passcode: str | None               # the principal's passcode hash (the local channel)
+    host: str = "127.0.0.1"
+    port: int = 8765
+    public_url: str = "http://127.0.0.1:8765"
+    wait: float = 0
+    ttl: float = 300
+    receipts: Path | None = None
+    secure_cookies: bool = False
+    channel: str | None = None         # "module:factory" for another approval channel
+    raw: dict = field(default_factory=dict)   # the whole [approvals] table, for that channel's own settings
+
+
 @dataclass
 class ProxyConfig:
     principal: str
@@ -94,6 +116,7 @@ class ProxyConfig:
     passthrough: frozenset[str] = frozenset()
     receipts: Path | None = None
     base: Path = field(default_factory=Path.cwd)
+    approvals: ApprovalsSpec | None = None
 
 
 def _param(name: str, raw: dict) -> ParamSpec:
@@ -138,10 +161,31 @@ def load_config(path: str | Path) -> ProxyConfig:
     policy_file = raw.get("policy", {}).get("file")
     if not policy_file:
         raise ValueError("a [policy] file is required (Cedar, default deny)")
+    approvals = _approvals(raw["approvals"], base) if "approvals" in raw else None
     defaults = raw.get("defaults", {})
     receipts = defaults.get("receipts")
     return ProxyConfig(principal=mandate.get("principal", "user"), claims=dict(mandate.get("claims", {})),
                        budget=mandate.get("budget"), registries=registries, servers=servers, tools=tools,
                        policy=(base / policy_file).read_text(encoding="utf-8"),
                        passthrough=frozenset(defaults.get("passthrough", ())),
-                       receipts=(base / receipts) if receipts else None, base=base)
+                       receipts=(base / receipts) if receipts else None, base=base, approvals=approvals)
+
+
+def _approvals(raw: dict, base: Path) -> ApprovalsSpec:
+    channel, passcode = raw.get("channel"), raw.get("passcode")
+    if channel is None:
+        if "approvers" in raw:
+            raise ValueError("[approvals.approvers]: the built-in page serves the user's own step-up; more "
+                             "approvers need an approval channel (`channel = \"module:factory\"`)")
+        if not passcode:
+            raise ValueError("[approvals] needs `passcode`: python -m intentplane.approvals hash-passcode")
+    if passcode is not None and not str(passcode).startswith("scrypt$"):
+        raise ValueError("[approvals] passcode: store its hash (python -m intentplane.approvals hash-passcode), "
+                         "never the passcode itself")
+    host, _, port = str(raw.get("listen", "127.0.0.1:8765")).rpartition(":")
+    host = host or "127.0.0.1"
+    receipts = raw.get("receipts")
+    return ApprovalsSpec(passcode, host, int(port), str(raw.get("public_url", f"http://{host}:{port}")).rstrip("/"),
+                         float(raw.get("wait", 0)), float(raw.get("ttl", 300)),
+                         (base / receipts) if receipts else None, bool(raw.get("secure_cookies", False)),
+                         channel, dict(raw))

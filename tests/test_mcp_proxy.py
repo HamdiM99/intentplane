@@ -52,7 +52,8 @@ def test_large_transfer_needs_the_users_confirmation_once(gate):
 def test_the_user_confirms_the_resolved_operation_not_the_agents_wording(gate):
     r = pay(gate, "fr76 3000 6000 0112 3456 7890 189", 1240.0)
     assert r.status == "pending"
-    assert r.resolved == {"recipient": f"{ACME}  (from beneficiaries/acme)", "amount": 1240.0}
+    assert r.resolved == {"recipient": f"{ACME}  (from beneficiaries/acme)", "amount": 1240.0,
+                          "other arguments": {"subject": "INV-2291"}}   # covered by the approval, so shown too
 
 
 def test_hard_cap_and_session_budget(gate):

@@ -217,9 +217,30 @@ claude mcp add intentplane -- uvx intentplane-mcp --config /path/to/intentplane.
 
 An agent skill, [`skills/intentplane/SKILL.md`](skills/intentplane/SKILL.md), teaches agents to work with the gateway (read a refusal, never work around it, report what executed) and to help users write a configuration. For Claude Code, copy it to `.claude/skills/intentplane/`.
 
-A step-up needs a client that supports MCP elicitation; with one that does not, the operation is refused.
-Four-eyes cannot be granted from the same client and is refused. The mandate is issued when the proxy starts
-(one session, one user); registries are JSON files in this version.
+### Confirming outside the client
+
+A step-up is confirmed in the client when it supports MCP elicitation. When it does not (Claude Desktop today),
+the user can confirm it on a local approval page: the agent relays a link, the user signs in with a passcode,
+sees the **resolved** operation (the trusted payee, the amount, every other argument, and where each critical
+value comes from) and approves or rejects it; the agent then calls the tool again and it executes.
+
+The approval is signed over that exact operation, single use, and expires with the request. The page can only
+show what the gateway asked to approve (the request is refused if what is shown does not hash to the operation),
+and changing any argument (one cent, another payee, another subject) makes another operation that needs its
+own approval. The agent cannot create requests or approve them without the passcode. Requests and decisions
+are hash-chained receipts.
+
+```toml
+[approvals]
+passcode = "scrypt$..."   # python -m intentplane.approvals hash-passcode
+listen = "127.0.0.1:8765"
+wait = 0                  # 0: the agent gets the link at once and retries; or wait up to N seconds
+```
+
+Without `[approvals]`, a step-up the client cannot ask for is refused. Four eyes can never be granted from the
+agent's own client: it is refused unless an approval channel that serves it is configured (`channel =
+"module:factory"`, see [`intentplane/approvals/channel.py`](intentplane/approvals/channel.py)). The mandate is
+issued when the proxy starts (one session, one user); registries are JSON files in this version.
 
 ## On a real ERP: Odoo
 
@@ -278,6 +299,12 @@ and executors receive the verified mandate. See [`intentplane/packs/`](intentpla
 - Partial payments and credit notes are not modelled; the text the agent says back is not covered.
 
 History of the design and of the reviews: [`docs/HISTORY.md`](docs/HISTORY.md).
+
+## Editions
+
+Everything that makes intentplane safe is in this repository, under Apache 2.0. An enterprise edition adds what
+an organization needs around it: a second approver, single sign-on, approvals on mobile, central audit, a hosted
+service and support. The line and its rules: [docs/editions.md](docs/editions.md).
 
 ## License
 

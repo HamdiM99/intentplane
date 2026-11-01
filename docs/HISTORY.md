@@ -1,6 +1,6 @@
 # History
 
-## Unreleased: a real ERP
+## Unreleased: a real ERP, and an approval app
 
 - The accounts-payable pack reads its systems of record through an `ERPSource` interface; the in-memory `ERP` is
   one implementation, `intentplane.connectors.odoo.OdooERP` another (Odoo's external API, three separate
@@ -8,6 +8,14 @@
 - `examples/odoo/`: Odoo 17 in Docker, setup and an end-to-end demo with both outcomes (legitimate bills paid,
   redirected bill refused) and a check that the reading and paying identities cannot change bank accounts.
 - `docs/registry-authority.md`: who may change the registries the gateway trusts.
+- Local approval page (`intentplane.approvals`, `[approvals]` in the proxy config): a step-up confirmed outside
+  the client, for clients without MCP elicitation. The approval is signed over the exact resolved operation,
+  single use, and expires with its request; the page refuses to show anything that does not hash to that
+  operation, and the confirmation now lists every argument the approval covers. Passcode hashes (scrypt), CSRF
+  tokens, lockout; requests and decisions as hash-chained receipts.
+- `ApprovalChannel` interface: another channel (more approvers, four eyes) can replace the local page. Four eyes
+  without such a channel is refused.
+- `docs/editions.md`: what is open source and what an enterprise edition adds; no security feature is paid.
 
 ## v0.6.0: Apache License 2.0
 

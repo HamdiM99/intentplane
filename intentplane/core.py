@@ -39,6 +39,11 @@ def _h(obj: Any) -> str:
     return hashlib.sha256(_canon(obj).encode()).hexdigest()
 
 
+def operation_hash(canonical: Mapping[str, Any]) -> str:
+    """The hash an approval signs: of `ResolvedIntent.canonical()`, i.e. exactly what the approver is shown."""
+    return _h(canonical)
+
+
 def _jsonable(v: Any) -> Any:
     """The agent's raw message, kept verbatim in the receipt (anything not JSON becomes its repr)."""
     try:
@@ -245,7 +250,7 @@ class ResolvedIntent:
                 "provenance": {k: [t.origin.value, t.ref] for k, t in sorted(self.params.items())}}
 
     def op_hash(self) -> str:
-        return _h(self.canonical())
+        return operation_hash(self.canonical())
 
 
 class Effect(str, Enum):
@@ -304,6 +309,10 @@ class Approvals:
     def __init__(self, humans: Mapping[str, bytes]) -> None:
         self._humans = dict(humans)
         self._used: set[str] = set()
+
+    def enroll(self, human: str, key: bytes | None = None) -> None:
+        """Add an approver (an approval channel enrolls its people); an existing key is never replaced."""
+        self._humans.setdefault(human, key or secrets.token_bytes(32))
 
     def approve(self, human: str, op_hash: str, ttl: float = 300) -> dict:
         nonce, exp = secrets.token_hex(16), time.time() + ttl
