@@ -1,5 +1,6 @@
 """The MCP proxy: decisions (without MCP), then end to end with a real MCP client, proxy and server
 (skipped unless `pip install .[mcp]`)."""
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -190,3 +191,21 @@ def test_a_misdeclared_tool_is_not_exposed(tmp_path):
             return {t.name for t in (await session.list_tools()).tools}
 
     assert anyio.run(run) == {"get_balance", "read_inbox", "send_email"}
+
+
+def test_check_finds_misdeclared_tools_and_runs_generated_attacks(tmp_path):
+    from intentplane.proxy.check import attacks, run, schema_report
+
+    cfg = load_config(EXAMPLE / "intentplane.toml")
+    problems, _ = schema_report(cfg, {"demo.send_money": {"properties": {"to": {}, "amount": {}}},
+                                      "demo.send_email": {"properties": {"to": {}, "subject": {}, "body": {}}}})
+    assert any("'recipient'" in p for p in problems)
+    case = {"tool": "demo.send_money", "args": {"recipient": ACME, "amount": 240.0},
+            "expect": "executed"}
+    assert [a["args"]["recipient"] for a in attacks(cfg, case)] == ["intentplane-check-untrusted-value"]
+    lines: list[str] = []
+    assert run(cfg, EXAMPLE / "cases.json", servers=False, out=lines.append) == 0, lines
+    assert sum("attack:" in line for line in lines) == 3
+    wrong = tmp_path / "wrong.json"
+    wrong.write_text(json.dumps([{**case, "expect": "denied"}]), encoding="utf-8")
+    assert run(cfg, wrong, servers=False, out=lines.append) == 1

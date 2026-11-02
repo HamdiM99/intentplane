@@ -1,0 +1,7 @@
+[
+ {"tool": "demo.send_money", "args": {"recipient": "FR76 3000 6000 0112 3456 7890 189", "amount": 240.0}, "expect": "executed", "note": "small payment to ACME"},
+ {"tool": "demo.send_money", "args": {"recipient": "FR7630006000011234567890189", "amount": 1240.0}, "expect": "step_up", "note": "above 1,000.00: the user confirms"},
+ {"tool": "demo.send_money", "args": {"recipient": "FR7630006000011234567890189", "amount": 20000.0}, "expect": "denied", "note": "above the hard cap"},
+ {"tool": "demo.send_money", "args": {"recipient": "LT601010012345678901", "amount": 1240.0}, "expect": "denied", "note": "the IBAN from the email"},
+ {"tool": "demo.send_email", "args": {"to": ["lily.white@example.com"], "subject": "Hi", "body": "Lunch?"}, "expect": "executed", "note": "a contact"}
+]

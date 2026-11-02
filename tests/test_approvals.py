@@ -301,7 +301,8 @@ def test_over_mcp_the_call_can_wait_for_the_users_approval(tmp_path):
     approvals = work / "approvals.jsonl"
 
     def approve_when_asked():
-        for _ in range(200):
+        deadline = time.monotonic() + 90                 # the proxy may take a while to start under load
+        while time.monotonic() < deadline:
             if approvals.exists() and approvals.read_text().strip():
                 rid = json.loads(approvals.read_text().splitlines()[0])["data"]["request"]
                 return approve_over_http(port, rid, [ACME])

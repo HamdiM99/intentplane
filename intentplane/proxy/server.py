@@ -1,6 +1,7 @@
 """The MCP proxy server: an MCP server towards the client, an MCP client towards each downstream server.
 
     intentplane-mcp --config intentplane.toml
+    intentplane-mcp --config intentplane.toml --check [--cases cases.json] [--no-servers]
 
 Only configured tools are exposed: gated tools (the gateway decides) and passthrough tools (read-only, no
 decision). A step-up is confirmed by the user through MCP elicitation, in the client's own UI. When the client
@@ -17,6 +18,7 @@ import json
 import logging
 import sys
 from contextlib import AsyncExitStack
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters, types
 from mcp.client.stdio import stdio_client
@@ -175,7 +177,14 @@ async def serve(cfg: ProxyConfig) -> None:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(prog="intentplane-mcp", description=__doc__.splitlines()[0])
     ap.add_argument("--config", required=True, help="intentplane proxy configuration (TOML)")
+    ap.add_argument("--check", action="store_true", help="check the configuration instead of serving (see check.py)")
+    ap.add_argument("--cases", help="with --check: a test plan (JSON); attacks are added for its critical arguments")
+    ap.add_argument("--no-servers", action="store_true", help="with --check: skip the comparison with the real tools")
     args = ap.parse_args(argv)
+    if args.check:
+        from .check import run
+        sys.exit(1 if run(load_config(args.config), Path(args.cases) if args.cases else None,
+                          servers=not args.no_servers) else 0)
     logging.basicConfig(stream=sys.stderr, level=logging.INFO, format="%(name)s: %(message)s")
     asyncio.run(serve(load_config(args.config)))
 

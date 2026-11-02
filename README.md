@@ -204,6 +204,17 @@ to the IBAN in the email is refused with an explanation the agent can read; a pa
 file executes, with the trusted record even if the agent spelled it differently; above 1,000.00 the client asks
 the user to confirm the exact operation; above 10,000.00, or beyond the session budget, nothing executes.
 
+Check a configuration before an agent uses it:
+
+```bash
+intentplane-mcp --config intentplane.toml --check --cases cases.json
+```
+
+It verifies that every declared tool and parameter exists on the real server (a misdeclared tool is not exposed),
+runs a test plan of expected decisions ([`examples/mcp/cases.json`](examples/mcp/cases.json)), and adds an
+attack for every critical argument of every call expected to pass: the same call with that argument taken from no
+trusted source must be refused. The real tools are never called.
+
 To use it from a client, register the proxy as an MCP server, for example:
 
 ```bash
