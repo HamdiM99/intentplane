@@ -1,5 +1,21 @@
 # History
 
+## v0.8.0: a sidecar for agent hosts, and no write outside the receipts
+
+- `intentplane.sidecar`: one gateway for an agent host running many tasks, one mandate per task, the GitHub pack
+  (`pr.create`, `pr.comment`, `pr.merge`, `branch.push`), an HTTP API for the host and the tasks.
+- `branch.push`: the sidecar publishes a task's commit from the host's read-only mirror, as a fast-forward of the
+  task's branch only; a change to CI configuration needs the operator.
+- Holds: a person's withdrawal (`hold`) survives restarts and is never undone by a re-issue; `withdrawn` is a stage
+  of its own.
+- `forbid-text-with-secret` (`intentplane.textscan`): a heuristic against credentials in comments and PRs.
+- `POST /v1/messages/screen`: the host screens each message it sends (secrets, held tasks), with a receipt.
+- `branch.push` of a commit changing dependencies (manifests, lockfiles, registry configuration) needs the operator.
+- Reviews count only from people with write access who are neither the PR's author, a bot, nor an agent's account.
+- `branch.push` of a commit changing agent instructions (AGENTS.md and the like) needs the operator.
+- `GH_TOKEN_FILE` is read on every GitHub call (short-lived GitHub App tokens).
+- `forbid-push-ci-exposes-secrets`: no push of a task's branch while a workflow would run it with a repository secret.
+
 ## v0.7.0: a real ERP, and confirming outside the client
 
 - The accounts-payable pack reads its systems of record through an `ERPSource` interface; the in-memory `ERP` is

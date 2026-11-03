@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "intentplane"
-version = "0.7.0"
+version = "0.8.0"
 description = "Intent control plane for LLM agents: the agent proposes, a deterministic gateway resolves every critical argument against trusted sources and decides (Cedar). Includes an MCP proxy."
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -25,11 +25,13 @@ classifiers = [
 dependencies = ["cedarpy>=4.0"]   # every pack's policy is a Cedar file
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "ruff>=0.5", "httpx>=0.27"]   # httpx: Starlette's TestClient
 # AgentDojo benchmark bridge; agentdojo 0.1.x passes `temperature` to messages.stream(), removed in anthropic 1.x
 agentdojo = ["agentdojo>=0.1.35", "anthropic<1"]
 # MCP proxy (the `intentplane-mcp` command is the separate package packaging/intentplane-mcp)
 mcp = ["mcp>=2.3,<3", "tomli>=2; python_version < '3.11'"]
+# Sidecar for agent hosts running many tasks (python -m intentplane.sidecar)
+sidecar = ["starlette>=0.37", "uvicorn>=0.30", "pyyaml>=6", "tomli>=2; python_version < '3.11'"]   # pyyaml: CI workflows
 
 [project.urls]
 Homepage = "https://github.com/HamdiM99/intentplane"

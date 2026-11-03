@@ -1,0 +1,27 @@
+# intentplane sidecar for a coding super-agent working on one repository.
+# Start:  INTENTPLANE_SIDECAR_SECRET=$(openssl rand -hex 32) GH_TOKEN=<the gateway's GitHub token> \
+#         python -m intentplane.sidecar --config examples/sidecar/intentplane-sidecar.toml
+
+[sidecar]
+listen = "127.0.0.1:8770"
+operator = "operator"            # the person accountable for the agent: confirms step-ups
+branch_prefix = "superagent/"    # a task's branch is superagent/<short name>
+mandate_ttl = 28800
+max_calls = 50
+receipts = "receipts.jsonl"
+
+[github]
+repo = "acme/app"
+base = "main"
+protected = ["main", "release"]
+
+[scopes]
+explicit = ["pr.create", "pr.comment", "pr.merge", "branch.push"]
+inferred = ["pr.create", "pr.comment", "branch.push"]
+
+[approvals]
+listen = "127.0.0.1:8771"
+ttl = 900
+[approvals.approvers]            # python -m intentplane.approvals hash-passcode
+# operator = "scrypt$..."        # step-up
+# reviewer = "scrypt$..."        # four eyes (anyone but the operator)

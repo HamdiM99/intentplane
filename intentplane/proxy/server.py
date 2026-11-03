@@ -161,7 +161,7 @@ async def serve(cfg: ProxyConfig) -> None:
                 return r.result
             return _refusal(r.message)
 
-        server = Server("intentplane", version="0.7.0",
+        server = Server("intentplane", version="0.8.0",
                         instructions="Tools are guarded by intentplane: refused calls return an explanation.",
                         on_list_tools=on_list_tools, on_call_tool=on_call_tool)
         async with stdio_server() as (read, write):

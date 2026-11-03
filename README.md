@@ -89,6 +89,7 @@ One core, several domains. A pack is contracts, trusted sources, a Cedar policy 
 | [Health](intentplane/packs/health.py) | read a patient record | the patient is in the clinician's open encounters; research needs consent and never reads the full record; break-the-glass needs four eyes |
 | [Workspace](integrations/agentdojo/workspace.py) (AgentDojo) | send email, invite, share, delete | every recipient is in the request or among the user's correspondents; deleting always needs the user |
 | [Code](intentplane/packs/code.py) | merge a commit | the commit was attested by CI for that developer, CI is green, protected branches need a review or four eyes |
+| [GitHub](intentplane/packs/github.py) (agent tasks) | open a PR, comment, merge | the PR comes from the task's own branch; comments go to the task's own threads and PRs; merge only for a task a person asked for, CI green on the PR's current head, the operator confirms, four eyes on a protected base without review |
 
 Records are scoped to the mandate's owner: one company's vendors, one clinician's encounters.
 
@@ -217,6 +218,17 @@ claude mcp add intentplane -- uvx intentplane-mcp --config /path/to/intentplane.
 
 An agent skill, [`skills/intentplane/SKILL.md`](skills/intentplane/SKILL.md), teaches agents to work with the gateway (read a refusal, never work around it, report what executed) and to help users write a configuration. For Claude Code, copy it to `.claude/skills/intentplane/`.
 
+### Many tasks at once: the sidecar
+
+An agent host that runs several tasks concurrently (a router dispatching work to workers) uses the sidecar
+instead: one mandate per task, issued by the host when it accepts the task and withdrawn when the task ends,
+over a small HTTP API. See [docs/sidecar.md](docs/sidecar.md).
+
+```bash
+pip install -e ".[sidecar]"
+INTENTPLANE_SIDECAR_SECRET=$(openssl rand -hex 32) python -m intentplane.sidecar --config examples/sidecar/intentplane-sidecar.toml
+```
+
 ### Confirming outside the client
 
 A step-up is confirmed in the client when it supports MCP elicitation. When it does not (Claude Desktop today),
@@ -296,7 +308,16 @@ and executors receive the verified mandate. See [`intentplane/packs/`](intentpla
 - **Free text and legitimate values**: a phishing link sent to real correspondents, or a payment to a real
   counterparty within the policy, are not prevented by resolution (budgets, approval levels and a strict
   mandate bound the second).
-- Partial payments and credit notes are not modelled; the text the agent says back is not covered.
+- **Free text is not decided, except by a heuristic**: in the GitHub pack, a comment or PR carrying something
+  that looks like a credential is refused (`intentplane.textscan`), but a split or encoded secret passes, and the
+  code an agent pushes to its own branch is free text too (it is not merged without green CI and a review).
+- **The gateway decides what passes through it**: an agent that can reach a write credential around it (the same OS
+  user as its host, a token in a readable file) is not stopped by it: confine the agent's shell (see
+  [docs/sidecar.md](docs/sidecar.md), deployment notes).
+- **CI on the agent's branch**: the GitHub pack refuses to push a task's branch while a workflow would run it with a
+  repository secret, but it does not check the permissions of the workflow's own `GITHUB_TOKEN`: set the repository's
+  default to read-only, or `permissions:` in each workflow.
+- Partial payments and credit notes are not modelled.
 
 History of the design and of the reviews: [`docs/HISTORY.md`](docs/HISTORY.md).
 

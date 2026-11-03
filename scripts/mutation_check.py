@@ -40,6 +40,10 @@ EQUIVALENT = {
         "amounts <= 1,000.00 are already permitted at level 0 by permit-small-transfer (MCP demo policy)",
     "health.cedar: permit-full-record-with-step-up (drop 'context.params.section == \"full\"')":
         "treatment reads of other sections are already permitted at level 0 by permit-treatment-read",
+    "github.cedar: permit-merge-protected-reviewed-step-up (drop 'context.pr.protected')":
+        "unprotected bases are already permitted at level 1 by permit-merge-unprotected-step-up",
+    "github.cedar: permit-merge-protected-four-eyes (drop 'context.pr.protected')":
+        "unprotected bases are already permitted at level 1 by permit-merge-unprotected-step-up, below four eyes",
 }
 GUARD = re.compile(r"context\.approval_level >= \d")
 

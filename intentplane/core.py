@@ -203,6 +203,7 @@ class Authority:
     def __init__(self) -> None:
         self._key = secrets.token_bytes(32)
         self._revoked: set[str] = set()
+        self._revoked_tokens: set[str] = set()
 
     def issue(self, principal: str, scopes: set[str] | frozenset[str], claims: Mapping[str, Any] | None = None, *,
               budget: float | None = None, max_calls: int | None = None, ttl: float = 3600) -> str:
@@ -212,7 +213,12 @@ class Authority:
         return payload + "." + hmac.new(self._key, payload.encode(), hashlib.sha256).hexdigest()
 
     def revoke(self, principal: str) -> None:
+        """Every mandate of this principal, now and later."""
         self._revoked.add(principal)
+
+    def revoke_token(self, jti: str) -> None:
+        """One mandate only, by its id: the principal's other mandates (other tasks) stay valid."""
+        self._revoked_tokens.add(jti)
 
     def verify(self, token: str) -> Mandate | None:
         try:
@@ -221,7 +227,7 @@ class Authority:
             if not hmac.compare_digest(sig, good):
                 return None
             c = json.loads(payload)
-            if c["exp"] < time.time() or c["sub"] in self._revoked:
+            if c["exp"] < time.time() or c["sub"] in self._revoked or c["jti"] in self._revoked_tokens:
                 return None
             return Mandate(c["sub"], frozenset(c["scopes"]), c["claims"], c["jti"], c["exp"],
                            c["budget"], c["max_calls"])
