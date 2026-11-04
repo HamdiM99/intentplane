@@ -1,0 +1,61 @@
+# intentplane MCP proxy for Claude Desktop: the demo configuration plus the local approval page, so a step-up
+# (a transfer above 1,000.00) can be confirmed although Claude Desktop does not support MCP elicitation.
+# Copy this file to intentplane.local.toml (ignored by git) and set your passcode hash there:
+#   python -m intentplane.approvals hash-passcode
+# Steps: examples/mcp/CLAUDE_DESKTOP.md
+
+[mandate]                     # issued by the trusted side for this session
+principal = "emma"
+budget = 250000               # cents: 2,500.00 EUR in total for the session
+[mandate.claims]
+addresses = ["emma@example.com"]
+
+[registries.beneficiaries]    # the payees Emma enrolled in her bank's own app
+file = "beneficiaries.json"
+normalize = "iban"
+
+[registries.contacts]         # Emma's address book
+file = "contacts.json"
+normalize = "email"
+
+[[servers]]
+name = "demo"
+command = "python"
+args = ["demo_server.py"]
+
+[[tools]]
+server = "demo"
+tool = "send_money"
+action = "payment.transfer"
+budget_param = "amount"
+[tools.params.recipient]
+critical = true
+sources = ["registry:beneficiaries"]
+normalize = "iban"
+[tools.params.amount]
+type = "number"
+scale = 100                   # the policy and the budget see cents
+
+[[tools]]
+server = "demo"
+tool = "send_email"
+action = "mail.send"
+[tools.params.to]
+critical = true
+each = true
+sources = ["mandate:addresses", "registry:contacts"]
+normalize = "email"
+
+[policy]
+file = "policy.cedar"
+
+[defaults]
+passthrough = ["demo.get_balance", "demo.read_inbox"]
+receipts = "receipts.jsonl"
+
+[approvals]                   # the local approval page
+passcode = "REPLACE: python -m intentplane.approvals hash-passcode"
+listen = "127.0.0.1:8765"
+wait = 0                      # the agent gets the link at once and calls again once you approved
+ttl = 300                     # a request, and its approval, expire after 5 minutes
+receipts = "approvals.jsonl"

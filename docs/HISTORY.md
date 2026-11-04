@@ -1,5 +1,15 @@
 # History
 
+## Unreleased
+
+- The proxy does not expose a gated tool whose declared parameters are not arguments of the real tool (a typo
+  would let the real argument through unchecked); the problem is logged.
+- `intentplane-mcp --check [--cases cases.json]`: checks a configuration against the real tools, runs a test plan
+  and generates an attack per critical argument (`examples/mcp/cases.json`).
+- `examples/mcp/intentplane-desktop.toml` and `CLAUDE_DESKTOP.md`: trying the local approval page in Claude
+  Desktop.
+- Agent skill: relay the approval link and retry with the same arguments.
+
 ## v0.8.0: a sidecar for agent hosts, and no write outside the receipts
 
 - `intentplane.sidecar`: one gateway for an agent host running many tasks, one mandate per task, the GitHub pack

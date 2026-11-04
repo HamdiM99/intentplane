@@ -21,6 +21,9 @@ mcp-publisher.exe
 mcp-publisher.tar.gz
 .mcpregistry_*
 examples/mcp/proxy.log
+examples/mcp/approvals.jsonl
+# local configurations (they hold a passcode hash)
+*.local.toml
 # screen recordings
 *.mp4
 # local Odoo demo secrets and logs

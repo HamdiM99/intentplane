@@ -57,9 +57,15 @@ the value somewhere else so that it looks trusted. A refusal is the system worki
   user the **resolved** operation: the trusted value, where it comes from (e.g. `from beneficiaries/acme`) and the
   amount. Encourage the user to check those values, not your summary.
 - `the user did not confirm the operation`: the user declined. Do not ask again unless the user brings it up.
-- `this MCP client cannot ask for it (it does not support MCP elicitation)`: nothing happened and nothing can
-  be confirmed from this client. Say so plainly; the user can confirm from a client that supports elicitation.
-- An operation that needs **four eyes** needs a second person; you cannot obtain it.
+- `waiting for approval by the user ... Approve it at <link>`: the client cannot ask (no MCP elicitation), so
+  intentplane opened the request on its local approval page. Give the user that link exactly as returned, and
+  call the tool again with the **same arguments** once they say they approved it. Any other argument is another
+  operation and needs its own approval; never change the arguments to "help".
+- `this MCP client cannot ask for it (it does not support MCP elicitation)`: nothing happened and no approval
+  page is set up. Say so plainly; the user can confirm from a client that supports elicitation, or set up the
+  approval page (`[approvals]` in the configuration).
+- An operation that needs **four eyes** needs a second person; you cannot obtain it. Relay the link if one is
+  returned; never ask the user to approve it themselves.
 
 ### Report what really happened
 
