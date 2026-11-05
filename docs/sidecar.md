@@ -1,7 +1,7 @@
 # The sidecar: one gateway for an agent host running many tasks
 
 `intentplane-mcp` serves one user in one session. An autonomous agent host (a "super-agent" router dispatching
-tasks to concurrent workers, such as DeepSeek Harness's `dsh-superagent` prototype) needs something else: one
+tasks to concurrent workers) needs something else: one
 gateway, one mandate **per task**, issued when the host accepts the task and withdrawn when it ends.
 
 ```

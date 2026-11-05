@@ -33,7 +33,7 @@ DEPENDENCY_FILES = frozenset({
     "NuGet.config", "nuget.config", "mix.exs", "mix.lock", "Package.swift", "Package.resolved", "Podfile", "Podfile.lock",
 })
 
-# Files coding agents read as instructions on every later task (dsh-superagent's workers inherit AGENTS.md): text an
+# Files coding agents read as instructions on every later task (a host's workers inherit AGENTS.md): text an
 # injected agent writes there would steer every agent after it, once merged.
 INSTRUCTION_FILES = frozenset({"AGENTS.md", "CLAUDE.md", "GEMINI.md", ".cursorrules", ".windsurfrules", ".clinerules",
                                "copilot-instructions.md"})

@@ -47,7 +47,7 @@ class World:
         return git(self.work, "rev-parse", "HEAD")
 
     def stage(self) -> str:
-        """What dsh-superagent's host does: HEAD of the ticket's directory into the mirror, under the task's branch."""
+        """What an agent host does: HEAD of the ticket's directory into the mirror, under the task's branch."""
         git(self.work, "push", "-q", "--force", str(self.mirror), f"HEAD:refs/heads/{BRANCH}")
         return git(self.work, "rev-parse", "HEAD")
 
